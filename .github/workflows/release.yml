@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GOPRIVATE: github.com/agentable/*
+      GOPROXY: direct
+      GOWORK: "off"
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@v6
+
+      - name: Configure Git for private modules
+        env:
+          TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Task
+        uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check module graph is tidy
+        run: task tidy-lint
+
+      - name: Run go vet
+        run: task vet
+
+      - name: Read golangci-lint version
+        id: golangci
+        run: echo "version=v$(cat .golangci.version)" >> "$GITHUB_OUTPUT"
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ steps.golangci.outputs.version }}
+          args: --timeout=30m --concurrency=1 --path-prefix=.
+
+      - name: Run all tests
+        run: task test

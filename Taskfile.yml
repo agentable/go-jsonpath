@@ -1,0 +1,201 @@
+version: '3'
+
+env:
+  GOPROXY: 'https://proxy.golang.org,direct'
+  GOSUMDB: 'sum.golang.org'
+
+vars:
+  PROJECT_ROOT:
+    sh: pwd
+  PGO_BENCH:
+    sh: >-
+      echo
+      'Benchmark(Select_ComplexPath|SelectLocated_ComplexPath|QueryJSON|QueryJSONLocated|Select_RealWorld_BookStore|Select_RealWorld_AllPrices)$'
+
+tasks:
+  default:
+    desc: Run lint and test
+    cmds:
+      - task: lint
+      - task: test
+
+  help:
+    desc: Show this help message
+    cmds:
+      - echo "JSONPath Library for Go"
+      - echo "Available targets:"
+      - task --list
+    silent: true
+
+  clean:
+    desc: Clean build artifacts and caches
+    cmds:
+      - echo "Cleaning build artifacts..."
+      - go clean -cache -testcache || true
+
+  deps:
+    desc: Download Go module dependencies
+    cmds:
+      - echo "Downloading dependencies..."
+      - GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org go mod download
+      - GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org go list -deps -test ./... >/dev/null
+
+
+  deps:update:
+    desc: Update dependencies for the root module and any nested modules
+    cmds:
+      - |
+        set -e
+        echo "Updating dependencies..."
+        MODULES=". $(find . -mindepth 2 -name go.mod \
+          -not -path '*/vendor/*' -not -path '*/.*' \
+          -exec dirname {} \; | sort)"
+        for dir in $MODULES; do
+          echo "==> $dir"
+          (
+            cd "$dir"
+            replaced=$(awk '
+              /^replace[[:space:]]+[^(]/ { print $2 }
+              /^replace[[:space:]]*\(/ { f=1; next }
+              f && /^\)/ { f=0; next }
+              f && /=>/ { print $1 }
+            ' go.mod)
+            deps=$(awk '
+              /^require[[:space:]]+[^(]/ { print $2 }
+              /^require[[:space:]]*\(/ { f=1; next }
+              f && /^\)/ { f=0; next }
+              f && !/\/\/ indirect/ && NF >= 2 { print $1 }
+            ' go.mod | while read -r dep; do
+              echo "$replaced" | grep -qxF "$dep" || echo "$dep"
+            done | tr '\n' ' ')
+            if [ -n "$deps" ]; then
+              go get -u $deps
+            fi
+            go mod tidy
+          )
+        done
+        if [ -f go.work ]; then
+          echo "==> go work sync"
+          go work sync
+        fi
+
+
+  submodule:update:
+    desc: Init/reset nested git submodules for this repository
+    cmds:
+      - |
+        set -eu
+        if [ ! -f .gitmodules ]; then
+          echo "No nested submodules."
+          exit 0
+        fi
+        git submodule sync --recursive
+        git submodule update --init --recursive --remote --force
+        git submodule foreach --recursive 'git reset --hard && git clean -fd' || true
+        git submodule sync --recursive
+        git submodule update --init --recursive --remote --force
+  test:
+    desc: Run all tests with race detection
+    cmds:
+      - echo "Running all tests..."
+      - go test -race ./...
+
+  test-unit:
+    desc: Run unit tests only
+    cmds:
+      - echo "Running unit tests..."
+      - go test -race ./...
+
+  test-coverage:
+    desc: Run tests with coverage report
+    cmds:
+      - echo "Running tests with coverage..."
+      - go test -race -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated at coverage.html"
+
+  test-verbose:
+    desc: Run tests with verbose output
+    cmds:
+      - echo "Running tests with verbose output..."
+      - go test -race -v ./...
+
+  bench:
+    desc: Run benchmarks
+    cmds:
+      - echo "Running benchmarks..."
+      - go test -run '^$' -bench=. -benchmem ./...
+
+  pgo:generate:
+    desc: Generate default.pgo from representative benchmarks
+    cmds:
+      - echo "Generating default.pgo from representative benchmarks..."
+      - rm -f default.pgo
+      - go test -run '^$' -bench '{{.PGO_BENCH}}' -cpuprofile=default.pgo -count=1 .
+      - test -f default.pgo
+      - echo "Generated default.pgo"
+
+  bench-pgo:
+    desc: Run representative benchmarks with default.pgo enabled
+    cmds:
+      - test -f default.pgo
+      - echo "Running representative benchmarks with PGO..."
+      - go test -pgo=default.pgo -run '^$' -bench '{{.PGO_BENCH}}' -benchmem -count=3 .
+
+  lint:
+    desc: Run all linters
+    deps:
+      - golangci-lint
+      - tidy-lint
+
+  golangci-lint:
+    desc: Run golangci-lint
+    cmds:
+      - go tool golangci-lint version
+      - echo "Running golangci-lint..."
+      - go tool golangci-lint run --timeout=30m --concurrency=1 --path-prefix=.
+
+  tidy-lint:
+    desc: Check if go.mod and go.sum are tidy
+    cmds:
+      - echo "Checking go.mod and go.sum are tidy..."
+      - |
+        tmp="$(mktemp -d)"
+        trap 'rm -rf "$tmp"' EXIT
+        cp go.mod go.sum "$tmp"/
+        go mod tidy
+        diff -u "$tmp/go.mod" go.mod
+        diff -u "$tmp/go.sum" go.sum
+
+  yamllint:
+    desc: Run yamllint
+    cmds:
+      - yamllint -s .
+
+  vuln:
+    desc: Run govulncheck
+    cmds:
+      - govulncheck ./...
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - echo "Formatting Go code..."
+      - go tool golangci-lint fmt ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - echo "Running go vet..."
+      - go vet ./...
+
+  verify:
+    desc: Run all verification steps (deps, format, vet, lint, test, vuln)
+    cmds:
+      - task: deps
+      - task: fmt
+      - task: vet
+      - task: lint
+      - task: test
+      - task: vuln
+      - echo "All verification steps completed successfully ✅"
