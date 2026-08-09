@@ -189,6 +189,22 @@ func TestFunctionDefinition_ClonesParameters(t *testing.T) {
 	}
 }
 
+func TestWithFunctions_ClonesDefinitions(t *testing.T) {
+	t.Parallel()
+
+	definitions := []Function{
+		NewLogicalFunction("original", []FuncType{FuncValue}, func([]FunctionValue) Logical { return true }),
+	}
+	option := WithFunctions(definitions...)
+	definitions[0] = Function{}
+
+	parser, err := NewParser(option)
+	require.NoError(t, err)
+
+	_, err = parser.Parse(`$[?original(@)]`)
+	require.NoError(t, err)
+}
+
 func TestWithFunctions_ConvertsQueryArgumentsFromSignature(t *testing.T) {
 	t.Parallel()
 

@@ -116,6 +116,7 @@ type parserOptions struct {
 // ASCII letter followed by lowercase ASCII letters, digits, or underscores.
 // Names must not duplicate another registered function or override a built-in.
 func WithFunctions(fns ...Function) Option {
+	fns = slices.Clone(fns)
 	return func(o *parserOptions) {
 		o.registerFunctions(fns...)
 	}
