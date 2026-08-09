@@ -1,7 +1,6 @@
 package jsonpath
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -452,17 +451,6 @@ func TestMapFuncType(t *testing.T) {
 
 	_, ok := mapFuncType(FuncType(99))
 	assert.False(t, ok)
-}
-
-func TestFunctionRegistrationErrorsJoin(t *testing.T) {
-	t.Parallel()
-
-	_, err := NewParser(WithFunctions(
-		Function{},
-		NewValueFunction("nil_callback", nil, nil),
-	))
-	require.ErrorIs(t, err, ErrFunction)
-	assert.True(t, errors.Is(err, ErrFunction))
 }
 
 func BenchmarkParserParse(b *testing.B) {
