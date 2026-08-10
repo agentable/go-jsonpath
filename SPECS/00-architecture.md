@@ -25,7 +25,7 @@ the completed implementation pass.
 
 | Part | Owner | Contract |
 |---|---|---|
-| Public API | `jsonpath.go`, `types.go`, `options.go` | Exposes compiled paths, JSON helpers, located results, normalized paths, sentinels, and typed function extensions. |
+| Public API | `jsonpath.go`, `parse.go`, `json.go`, `normalized.go`, `result.go`, `errors.go`, `options.go` | Exposes compiled paths, JSON helpers, located results, normalized paths, sentinels, and typed function extensions. |
 | Parser pipeline | `internal/lexer`, `internal/parser` | Converts top-level `$` paths and private `$`/`@` filter queries into one AST model while preserving structured parse diagnostics. |
 | AST and selection semantics | `internal/ast` | Owns the single `PathQuery` representation, selector rules, filter evaluation, child traversal, slice/index resolution, and function runtime conversion. |
 | Built-in functions | `internal/functions` | Owns RFC 9535 built-ins, RFC 9485 acceptance, and RE2 mapping used by parser registries. |

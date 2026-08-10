@@ -28,12 +28,16 @@ task verify      # deps + fmt + vet + lint + test + vuln
 
 ```text
 jsonpath/
-├── jsonpath.go          # Public API, JSON decoding, and located selection
-├── types.go             # Result containers, immutable NormalizedPath, sorting, dedup
+├── jsonpath.go          # Compiled Path selection and located traversal
+├── parse.go             # Package parsing and Path text behavior
+├── json.go              # JSON decoding helpers and exact number preservation
+├── normalized.go        # Immutable NormalizedPath representation
+├── result.go            # Node and located-result containers
+├── errors.go            # Public error vocabulary and ParseError
 ├── options.go           # Parser configuration and public function extension boundary
 ├── compliance/          # Embedded CTS runner and test data
 └── internal/
-    ├── ast/             # Query, segment, selector, filter, function AST, shared eval rules
+    ├── ast/             # Query, selector, filter, function, child, array, and number rules
     ├── functions/       # RFC 9535 built-in function implementations
     ├── lexer/           # Zero-copy tokenization via byte offsets
     └── parser/          # Recursive descent parser and validation
@@ -131,7 +135,7 @@ For parser, selector, located-result, normalized-path, or built-in-function perf
 - Keep `Select` and `SelectLocated` behavior aligned whenever selector semantics change.
 - Keep plain selection composition owned by `internal/ast`; `Path.Select` remains a thin validity and delegation boundary.
 - Keep `internal/ast.Selector` as the hot-path tagged union; do not replace it with interface dispatch.
-- Treat `jsonpath.go`, `types.go`, and `internal/functions/builtins.go` as performance-sensitive.
+- Treat `jsonpath.go`, `normalized.go`, `json.go`, and `internal/functions/builtins.go` as performance-sensitive.
 - Keep `NormalizedPath` immutable at the public boundary; preserve `String`, `Pointer`, `Compare`, `Equal`, `Sort`, and `Deduplicate` semantics.
 - Reject invalid UTF-8 normalized names at public construction boundaries; do not normalize invalid bytes to U+FFFD.
 - Keep top-level `$` grammar and positioned errors in `internal/parser`; accept `@` only through private filter-query parsing.

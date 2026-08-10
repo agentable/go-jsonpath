@@ -331,6 +331,57 @@ func TestPath_MarshalUnmarshal_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestPath_UnmarshalText_InvalidKeepsExistingQuery(t *testing.T) {
+	t.Parallel()
+
+	var path Path
+	require.NoError(t, path.UnmarshalText([]byte("$.ok")))
+
+	err := path.UnmarshalText([]byte("invalid"))
+	require.ErrorIs(t, err, ErrPathParse)
+
+	got := path.Select(map[string]any{"ok": "kept", "invalid": "lost"})
+	if diff := cmp.Diff(NodeList{"kept"}, got); diff != "" {
+		t.Errorf("Select() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestPath_UnmarshalText_InvalidReceiver(t *testing.T) {
+	t.Parallel()
+
+	var path *Path
+	err := path.UnmarshalText([]byte("$.a"))
+	require.ErrorIs(t, err, ErrInvalidPath)
+}
+
+func TestValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		expr  string
+		valid bool
+	}{
+		{name: "valid simple path", expr: "$.store.book", valid: true},
+		{name: "valid array index", expr: "$[0]", valid: true},
+		{name: "valid wildcard", expr: "$[*]", valid: true},
+		{name: "valid slice", expr: "$[0:5:2]", valid: true},
+		{name: "valid descendant", expr: "$..book", valid: true},
+		{name: "invalid missing root", expr: "store.book"},
+		{name: "invalid current node root", expr: "@.store"},
+		{name: "invalid syntax", expr: "$["},
+		{name: "invalid empty", expr: ""},
+		{name: "valid complex path", expr: "$.store.book[*].author", valid: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.valid, Valid(tt.expr))
+		})
+	}
+}
+
 func TestParse_ReturnsStructuredParseError(t *testing.T) {
 	t.Parallel()
 

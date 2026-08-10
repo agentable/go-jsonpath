@@ -689,6 +689,36 @@ func TestApplySliceEdgeCases(t *testing.T) {
 			node: arr,
 			want: nil,
 		},
+		{
+			name: "start_beyond_end_with_positive_step",
+			sel:  SliceSelector(SliceArgs{Start: 3, End: 1, Step: 1, HasStart: true, HasEnd: true, HasStep: true}),
+			node: arr,
+			want: nil,
+		},
+		{
+			name: "negative_step_from_start_to_end",
+			sel:  SliceSelector(SliceArgs{Start: 3, End: 1, Step: -1, HasStart: true, HasEnd: true, HasStep: true}),
+			node: arr,
+			want: []any{float64(3), float64(2)},
+		},
+		{
+			name: "very_negative_start_without_end",
+			sel:  SliceSelector(SliceArgs{Start: -100, HasStart: true}),
+			node: arr,
+			want: arr,
+		},
+		{
+			name: "very_large_end_without_start",
+			sel:  SliceSelector(SliceArgs{End: 100, HasEnd: true}),
+			node: arr,
+			want: arr,
+		},
+		{
+			name: "step_larger_than_array",
+			sel:  SliceSelector(SliceArgs{Step: 10, HasStep: true}),
+			node: arr,
+			want: []any{float64(0)},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -1,7 +1,7 @@
 package jsonpath
 
 import (
-	"encoding/json"
+	stdjson "encoding/json"
 	"math"
 	"slices"
 	"strings"
@@ -14,55 +14,13 @@ import (
 	"github.com/agentable/go-jsonpath/internal/ast"
 )
 
-func TestPath_ZeroValue(t *testing.T) {
+func TestPath_ZeroValueSelectsNothing(t *testing.T) {
 	t.Parallel()
 
 	var path Path
 
 	assert.Nil(t, path.Select(map[string]any{"a": 1}))
 	assert.Nil(t, path.SelectLocated(map[string]any{"a": 1}))
-	assert.Equal(t, "", path.String())
-}
-
-func TestPath_UnmarshalText_InvalidReceiver(t *testing.T) {
-	t.Parallel()
-
-	var path *Path
-
-	err := path.UnmarshalText([]byte("$.a"))
-	require.ErrorIs(t, err, ErrInvalidPath)
-}
-
-func TestQueryJSON_InvalidPath(t *testing.T) {
-	t.Parallel()
-
-	got, err := QueryJSON([]byte(`{"a":1}`), Path{})
-	require.ErrorIs(t, err, ErrInvalidPath)
-	assert.Nil(t, got)
-}
-
-func TestQueryJSONLocated_InvalidPath(t *testing.T) {
-	t.Parallel()
-
-	got, err := QueryJSONLocated([]byte(`{"a":1}`), Path{})
-	require.ErrorIs(t, err, ErrInvalidPath)
-	assert.Nil(t, got)
-}
-
-func TestQueryJSONRead_InvalidPath(t *testing.T) {
-	t.Parallel()
-
-	got, err := QueryJSONRead(strings.NewReader(`{"a":1}`), Path{})
-	require.ErrorIs(t, err, ErrInvalidPath)
-	assert.Nil(t, got)
-}
-
-func TestQueryJSONReadLocated_InvalidPath(t *testing.T) {
-	t.Parallel()
-
-	got, err := QueryJSONReadLocated(strings.NewReader(`{"a":1}`), Path{})
-	require.ErrorIs(t, err, ErrInvalidPath)
-	assert.Nil(t, got)
 }
 
 func TestPath_Select_NameSelector(t *testing.T) {
@@ -483,92 +441,6 @@ func TestPath_Select_ComplexPath(t *testing.T) {
 	}
 }
 
-func TestNormalizeIndex(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		idx    int64
-		length int
-		want   int
-		wantOK bool
-	}{
-		{"positive in bounds", 2, 5, 2, true},
-		{"zero", 0, 5, 0, true},
-		{"last element", 4, 5, 4, true},
-		{"negative -1", -1, 5, 4, true},
-		{"negative -2", -2, 5, 3, true},
-		{"negative all", -5, 5, 0, true},
-		{"out of bounds positive", 10, 5, 0, false},
-		{"out of bounds negative", -10, 5, 0, false},
-		{"empty array", 0, 0, 0, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, ok := ast.NormalizeIndex(tt.idx, tt.length)
-			assert.Equal(t, tt.wantOK, ok)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestSelectorApplySlice_EdgeCases(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		arr  []any
-		args ast.SliceArgs
-		want []any
-	}{
-		{
-			name: "start beyond end with positive step",
-			arr:  []any{0, 1, 2, 3, 4},
-			args: ast.SliceArgs{Start: 3, End: 1, Step: 1, HasStart: true, HasEnd: true, HasStep: true},
-			want: []any{},
-		},
-		{
-			name: "negative step from start to end",
-			arr:  []any{0, 1, 2, 3, 4},
-			args: ast.SliceArgs{Start: 3, End: 1, Step: -1, HasStart: true, HasEnd: true, HasStep: true},
-			want: []any{3, 2},
-		},
-		{
-			name: "large negative start normalizes to 0",
-			arr:  []any{0, 1, 2},
-			args: ast.SliceArgs{Start: -100, HasStart: true},
-			want: []any{0, 1, 2},
-		},
-		{
-			name: "large positive end normalizes to length",
-			arr:  []any{0, 1, 2},
-			args: ast.SliceArgs{End: 100, HasEnd: true},
-			want: []any{0, 1, 2},
-		},
-		{
-			name: "step larger than array",
-			arr:  []any{0, 1, 2, 3, 4},
-			args: ast.SliceArgs{Step: 10, HasStep: true},
-			want: []any{0},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			selector := ast.SliceSelector(tt.args)
-			got := selector.Apply([]any{}, tt.arr, nil)
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("selection mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
 func BenchmarkSelect_NameSelector(b *testing.B) {
 	input := map[string]any{
 		"a": 1,
@@ -702,7 +574,7 @@ func TestPath_Select_FilterQueries(t *testing.T) {
 
 	input := map[string]any{
 		"expensive": 15,
-		"numbers":   []any{json.Number("1e1000001")},
+		"numbers":   []any{stdjson.Number("1e1000001")},
 		"items": []any{
 			map[string]any{"name": "paper", "price": 5, "tags": []any{"office"}, "code": "a", "meta": map[string]any{"target": "paper"}},
 			map[string]any{"name": "pencil", "price": 2, "tags": []any{"office", "writing"}, "code": "b"},
@@ -810,8 +682,8 @@ func TestPath_Select_JSONNumberComparison(t *testing.T) {
 	t.Parallel()
 
 	input := []any{
-		json.Number("9007199254740992"),
-		json.Number("9007199254740993"),
+		stdjson.Number("9007199254740992"),
+		stdjson.Number("9007199254740993"),
 	}
 	path := MustParse(`$[?@ == 9007199254740992]`)
 	want := []any{input[0]}
@@ -842,7 +714,7 @@ func TestPath_Select_ExactLargeUnsignedIntegerComparison(t *testing.T) {
 func TestPath_Select_ExactDecimalComparison(t *testing.T) {
 	t.Parallel()
 
-	input := []any{json.Number("0.1")}
+	input := []any{stdjson.Number("0.1")}
 	path := MustParse(`$[?@ == 0.1]`)
 	assert.Equal(t, `$[?@ == 0.1]`, path.String())
 
@@ -856,7 +728,7 @@ func TestPath_Select_InvalidJSONNumbersAreNotComparable(t *testing.T) {
 
 	input := []any{
 		math.Inf(1),
-		json.Number("invalid"),
+		stdjson.Number("invalid"),
 	}
 	got := MustParse(`$[?@ == @]`).Select(input)
 
@@ -867,7 +739,7 @@ func TestPath_Select_LargeExponentJSONNumberIsComparable(t *testing.T) {
 	t.Parallel()
 
 	path := MustParse(`$[?@ == @]`)
-	value := json.Number("1e1000001")
+	value := stdjson.Number("1e1000001")
 	want := []any{value}
 
 	if diff := cmp.Diff(want, []any(path.Select([]any{value}))); diff != "" {
@@ -1356,363 +1228,23 @@ func TestPath_SelectLocated_NilQuery(t *testing.T) {
 	assert.Nil(t, got)
 }
 
-func TestLocatedNodeList_Methods(t *testing.T) {
+func TestPath_SelectLocated_NegativeSlicePaths(t *testing.T) {
 	t.Parallel()
 
-	list := LocatedNodeList{
-		{Value: 1, Path: mustNormalizedPath(NameElement("a"))},
-		{Value: 2, Path: mustNormalizedPath(NameElement("b"))},
-		{Value: 3, Path: mustNormalizedPath(IndexElement(0))},
+	path := MustParse("$[::-2]")
+	got := path.SelectLocated([]any{0, 1, 2, 3, 4})
+
+	values := slices.Collect(got.Values())
+	if diff := cmp.Diff([]any{4, 2, 0}, values); diff != "" {
+		t.Errorf("Values() mismatch (-want +got):\n%s", diff)
 	}
 
-	t.Run("Values", func(t *testing.T) {
-		t.Parallel()
-
-		values := make([]any, 0, len(list))
-		for v := range list.Values() {
-			values = append(values, v)
-		}
-		if diff := cmp.Diff([]any{1, 2, 3}, values); diff != "" {
-			t.Errorf("LocatedNodeList.Values() mismatch (-want +got):\n%s", diff)
-		}
-	})
-
-	t.Run("Paths", func(t *testing.T) {
-		t.Parallel()
-
-		paths := make([]string, 0, len(list))
-		for p := range list.Paths() {
-			paths = append(paths, p.String())
-		}
-		if diff := cmp.Diff([]string{"$['a']", "$['b']", "$[0]"}, paths); diff != "" {
-			t.Errorf("LocatedNodeList.Paths() mismatch (-want +got):\n%s", diff)
-		}
-	})
-
-	t.Run("All", func(t *testing.T) {
-		t.Parallel()
-
-		nodes := make(LocatedNodeList, 0, len(list))
-		for n := range list.All() {
-			nodes = append(nodes, n)
-		}
-		if diff := cmp.Diff(list, nodes); diff != "" {
-			t.Errorf("LocatedNodeList.All() mismatch (-want +got):\n%s", diff)
-		}
-	})
-}
-
-func TestLocatedNodeList_Deduplicate(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name string
-		list LocatedNodeList
-		exp  LocatedNodeList
-	}{
-		{
-			name: "empty",
-			list: LocatedNodeList{},
-			exp:  LocatedNodeList{},
-		},
-		{
-			name: "single",
-			list: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-			},
-			exp: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-			},
-		},
-		{
-			name: "no_duplicates",
-			list: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("y"))},
-				{Value: "c", Path: mustNormalizedPath(IndexElement(0))},
-			},
-			exp: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("y"))},
-				{Value: "c", Path: mustNormalizedPath(IndexElement(0))},
-			},
-		},
-		{
-			name: "duplicates_same_value",
-			list: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("y"))},
-			},
-			exp: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("y"))},
-			},
-		},
-		{
-			name: "duplicates_diff_value",
-			list: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "different", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("y"))},
-			},
-			exp: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("y"))},
-			},
-		},
-		{
-			name: "multiple_duplicates",
-			list: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("y"))},
-				{Value: "c", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "d", Path: mustNormalizedPath(NameElement("z"))},
-				{Value: "e", Path: mustNormalizedPath(NameElement("y"))},
-			},
-			exp: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("y"))},
-				{Value: "d", Path: mustNormalizedPath(NameElement("z"))},
-			},
-		},
-		{
-			name: "nested_paths",
-			list: LocatedNodeList{
-				{Value: 1, Path: mustNormalizedPath(NameElement("a"), IndexElement(0))},
-				{Value: 2, Path: mustNormalizedPath(NameElement("a"), IndexElement(1))},
-				{Value: 3, Path: mustNormalizedPath(NameElement("a"), IndexElement(0))},
-			},
-			exp: LocatedNodeList{
-				{Value: 1, Path: mustNormalizedPath(NameElement("a"), IndexElement(0))},
-				{Value: 2, Path: mustNormalizedPath(NameElement("a"), IndexElement(1))},
-			},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := tc.list.Deduplicate()
-			if diff := cmp.Diff(tc.exp, got); diff != "" {
-				t.Errorf("LocatedNodeList.Deduplicate() mismatch (-want +got):\n%s", diff)
-			}
-		})
+	paths := make([]string, 0, len(got))
+	for p := range got.Paths() {
+		paths = append(paths, p.String())
 	}
-}
-
-func TestLocatedNodeList_DeduplicateWithHashCollisions(t *testing.T) {
-	t.Parallel()
-
-	list := LocatedNodeList{
-		{Value: "first", Path: mustNormalizedPath(NameElement("x"))},
-		{Value: "second", Path: mustNormalizedPath(NameElement("y"))},
-		{Value: "duplicate first", Path: mustNormalizedPath(NameElement("x"))},
-		{Value: "third", Path: mustNormalizedPath(NameElement("z"))},
-		{Value: "duplicate second", Path: mustNormalizedPath(NameElement("y"))},
-	}
-
-	got := list.deduplicateWithHasher(func(NormalizedPath) uint64 {
-		return 1
-	})
-
-	want := LocatedNodeList{
-		{Value: "first", Path: mustNormalizedPath(NameElement("x"))},
-		{Value: "second", Path: mustNormalizedPath(NameElement("y"))},
-		{Value: "third", Path: mustNormalizedPath(NameElement("z"))},
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("LocatedNodeList.Deduplicate() mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestLocatedNodeList_DeduplicateClearsTrimmedSlots(t *testing.T) {
-	t.Parallel()
-
-	list := LocatedNodeList{
-		{Value: "first", Path: mustNormalizedPath(NameElement("x"))},
-		{Value: "ignored value", Path: mustNormalizedPath(NameElement("x"))},
-		{Value: "second", Path: mustNormalizedPath(NameElement("y"))},
-		{Value: "ignored again", Path: mustNormalizedPath(NameElement("x"))},
-	}
-
-	got := list.Deduplicate()
-	want := LocatedNodeList{
-		{Value: "first", Path: mustNormalizedPath(NameElement("x"))},
-		{Value: "second", Path: mustNormalizedPath(NameElement("y"))},
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("LocatedNodeList.Deduplicate() mismatch (-want +got):\n%s", diff)
-	}
-
-	for i, node := range list[len(got):] {
-		assert.Zero(t, node, "trimmed slot %d should be cleared", i)
-	}
-}
-
-func BenchmarkLocatedNodeList_Deduplicate(b *testing.B) {
-	makeList := func(size int, dupEvery int) LocatedNodeList {
-		list := make(LocatedNodeList, 0, size)
-		for i := range size {
-			idx := i
-			if dupEvery > 0 {
-				idx = i % dupEvery
-			}
-			list = append(list, LocatedNode{
-				Value: i,
-				Path: mustNormalizedPath(
-					NameElement("users"),
-					IndexElement(idx),
-					NameElement("name")),
-			})
-		}
-		return list
-	}
-
-	b.Run("small", func(b *testing.B) {
-		src := makeList(32, 8)
-		b.ReportAllocs()
-		for b.Loop() {
-			list := slices.Clone(src)
-			_ = list.Deduplicate()
-		}
-	})
-
-	b.Run("large", func(b *testing.B) {
-		src := makeList(1024, 128)
-		b.ReportAllocs()
-		for b.Loop() {
-			list := slices.Clone(src)
-			_ = list.Deduplicate()
-		}
-	})
-
-	b.Run("high_collision", func(b *testing.B) {
-		src := makeList(1024, 0)
-		b.ReportAllocs()
-		for b.Loop() {
-			list := slices.Clone(src)
-			_ = list.deduplicateWithHasher(func(NormalizedPath) uint64 {
-				return 1
-			})
-		}
-	})
-}
-
-func TestLocatedNodeList_Sort(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name string
-		list LocatedNodeList
-		exp  LocatedNodeList
-	}{
-		{
-			name: "empty",
-			list: LocatedNodeList{},
-			exp:  LocatedNodeList{},
-		},
-		{
-			name: "single",
-			list: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-			},
-			exp: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("x"))},
-			},
-		},
-		{
-			name: "already_sorted",
-			list: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("a"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("b"))},
-				{Value: "c", Path: mustNormalizedPath(NameElement("c"))},
-			},
-			exp: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("a"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("b"))},
-				{Value: "c", Path: mustNormalizedPath(NameElement("c"))},
-			},
-		},
-		{
-			name: "reverse_order",
-			list: LocatedNodeList{
-				{Value: "c", Path: mustNormalizedPath(NameElement("c"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("b"))},
-				{Value: "a", Path: mustNormalizedPath(NameElement("a"))},
-			},
-			exp: LocatedNodeList{
-				{Value: "a", Path: mustNormalizedPath(NameElement("a"))},
-				{Value: "b", Path: mustNormalizedPath(NameElement("b"))},
-				{Value: "c", Path: mustNormalizedPath(NameElement("c"))},
-			},
-		},
-		{
-			name: "indexes_before_names",
-			list: LocatedNodeList{
-				{Value: "name", Path: mustNormalizedPath(NameElement("x"))},
-				{Value: "index", Path: mustNormalizedPath(IndexElement(0))},
-			},
-			exp: LocatedNodeList{
-				{Value: "index", Path: mustNormalizedPath(IndexElement(0))},
-				{Value: "name", Path: mustNormalizedPath(NameElement("x"))},
-			},
-		},
-		{
-			name: "mixed_indexes_and_names",
-			list: LocatedNodeList{
-				{Value: "n2", Path: mustNormalizedPath(NameElement("z"))},
-				{Value: "i2", Path: mustNormalizedPath(IndexElement(5))},
-				{Value: "n1", Path: mustNormalizedPath(NameElement("a"))},
-				{Value: "i1", Path: mustNormalizedPath(IndexElement(0))},
-			},
-			exp: LocatedNodeList{
-				{Value: "i1", Path: mustNormalizedPath(IndexElement(0))},
-				{Value: "i2", Path: mustNormalizedPath(IndexElement(5))},
-				{Value: "n1", Path: mustNormalizedPath(NameElement("a"))},
-				{Value: "n2", Path: mustNormalizedPath(NameElement("z"))},
-			},
-		},
-		{
-			name: "nested_paths",
-			list: LocatedNodeList{
-				{Value: 3, Path: mustNormalizedPath(NameElement("b"), IndexElement(0))},
-				{Value: 1, Path: mustNormalizedPath(NameElement("a"), IndexElement(0))},
-				{Value: 4, Path: mustNormalizedPath(NameElement("b"), IndexElement(1))},
-				{Value: 2, Path: mustNormalizedPath(NameElement("a"), IndexElement(1))},
-			},
-			exp: LocatedNodeList{
-				{Value: 1, Path: mustNormalizedPath(NameElement("a"), IndexElement(0))},
-				{Value: 2, Path: mustNormalizedPath(NameElement("a"), IndexElement(1))},
-				{Value: 3, Path: mustNormalizedPath(NameElement("b"), IndexElement(0))},
-				{Value: 4, Path: mustNormalizedPath(NameElement("b"), IndexElement(1))},
-			},
-		},
-		{
-			name: "different_lengths",
-			list: LocatedNodeList{
-				{Value: "long", Path: mustNormalizedPath(NameElement("a"), NameElement("b"), IndexElement(0))},
-				{Value: "short", Path: mustNormalizedPath(NameElement("a"))},
-				{Value: "medium", Path: mustNormalizedPath(NameElement("a"), NameElement("b"))},
-			},
-			exp: LocatedNodeList{
-				{Value: "short", Path: mustNormalizedPath(NameElement("a"))},
-				{Value: "medium", Path: mustNormalizedPath(NameElement("a"), NameElement("b"))},
-				{Value: "long", Path: mustNormalizedPath(NameElement("a"), NameElement("b"), IndexElement(0))},
-			},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Make a copy to avoid modifying the test case
-			list := make(LocatedNodeList, len(tc.list))
-			copy(list, tc.list)
-
-			list.Sort()
-			if diff := cmp.Diff(tc.exp, list); diff != "" {
-				t.Errorf("LocatedNodeList.Sort() mismatch (-want +got):\n%s", diff)
-			}
-		})
+	if diff := cmp.Diff([]string{"$[4]", "$[2]", "$[0]"}, paths); diff != "" {
+		t.Errorf("Paths() mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -1844,410 +1376,6 @@ func BenchmarkExtendPath(b *testing.B) {
 			_ = extendPath(path, namePathStep("first"))
 		}
 	})
-}
-
-func TestQueryJSON(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		json    string
-		path    string
-		want    []any
-		wantErr bool
-	}{
-		{
-			name: "simple name selector",
-			json: `{"a": 1, "b": 2}`,
-			path: "$.a",
-			want: []any{json.Number("1")},
-		},
-		{
-			name: "array index selector",
-			json: `[10, 20, 30]`,
-			path: "$[1]",
-			want: []any{json.Number("20")},
-		},
-		{
-			name: "nested path",
-			json: `{"store": {"book": [{"title": "Book 1", "price": 8.95}]}}`,
-			path: "$.store.book[0].title",
-			want: []any{"Book 1"},
-		},
-		{
-			name: "wildcard selector",
-			json: `{"a": 1, "b": 2, "c": 3}`,
-			path: "$[*]",
-			want: []any{json.Number("1"), json.Number("2"), json.Number("3")},
-		},
-		{
-			name:    "invalid json",
-			json:    `{invalid}`,
-			path:    "$.a",
-			wantErr: true,
-		},
-		{
-			name: "empty result",
-			json: `{"a": 1}`,
-			path: "$.b",
-			want: []any{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			path := MustParse(tt.path)
-			got, err := QueryJSON([]byte(tt.json), path)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			if diff := cmp.Diff(tt.want, []any(got)); diff != "" {
-				t.Errorf("Select() mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestQueryJSONLocated(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		json    string
-		path    string
-		want    LocatedNodeList
-		wantErr bool
-	}{
-		{
-			name: "simple name selector",
-			json: `{"a": 1, "b": 2}`,
-			path: "$.a",
-			want: LocatedNodeList{
-				{Value: json.Number("1"), Path: mustNormalizedPath(NameElement("a"))},
-			},
-		},
-		{
-			name: "array index selector",
-			json: `[10, 20, 30]`,
-			path: "$[1]",
-			want: LocatedNodeList{
-				{Value: json.Number("20"), Path: mustNormalizedPath(IndexElement(1))},
-			},
-		},
-		{
-			name: "nested path",
-			json: `{"store": {"book": [{"title": "Book 1"}]}}`,
-			path: "$.store.book[0].title",
-			want: LocatedNodeList{
-				{
-					Value: "Book 1",
-					Path: mustNormalizedPath(
-						NameElement("store"),
-						NameElement("book"),
-						IndexElement(0),
-						NameElement("title")),
-				},
-			},
-		},
-		{
-			name: "multiple results",
-			json: `{"store": {"book": [{"price": 8.95}, {"price": 12.99}]}}`,
-			path: "$.store.book[*].price",
-			want: LocatedNodeList{
-				{
-					Value: json.Number("8.95"),
-					Path: mustNormalizedPath(
-						NameElement("store"),
-						NameElement("book"),
-						IndexElement(0),
-						NameElement("price")),
-				},
-				{
-					Value: json.Number("12.99"),
-					Path: mustNormalizedPath(
-						NameElement("store"),
-						NameElement("book"),
-						IndexElement(1),
-						NameElement("price")),
-				},
-			},
-		},
-		{
-			name:    "invalid json",
-			json:    `{invalid}`,
-			path:    "$.a",
-			wantErr: true,
-		},
-		{
-			name: "empty result",
-			json: `{"a": 1}`,
-			path: "$.b",
-			want: LocatedNodeList{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			path := MustParse(tt.path)
-			got, err := QueryJSONLocated([]byte(tt.json), path)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("SelectLocated() mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestQueryJSON_PreservesNumberLexemes(t *testing.T) {
-	t.Parallel()
-
-	path := MustParse(`$[?@ == 0.1]`)
-	got, err := QueryJSON([]byte(`[0.1, 0.10, 0.2]`), path)
-	require.NoError(t, err)
-
-	want := NodeList{json.Number("0.1"), json.Number("0.10")}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("QueryJSON() mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestQueryJSON_NumberBoundaries(t *testing.T) {
-	t.Parallel()
-
-	src := []byte(`[1, 1.10, 1e-2, 9007199254740992, 9007199254740993]`)
-	all, err := QueryJSON(src, MustParse(`$[*]`))
-	require.NoError(t, err)
-	wantAll := NodeList{
-		json.Number("1"),
-		json.Number("1.10"),
-		json.Number("1e-2"),
-		json.Number("9007199254740992"),
-		json.Number("9007199254740993"),
-	}
-	if diff := cmp.Diff(wantAll, all); diff != "" {
-		t.Errorf("QueryJSON() lexemes mismatch (-want +got):\n%s", diff)
-	}
-
-	path := MustParse(`$[?@ > 9007199254740992]`)
-	got, err := QueryJSONLocated(src, path)
-	require.NoError(t, err)
-	want := LocatedNodeList{{
-		Value: json.Number("9007199254740993"),
-		Path:  mustNormalizedPath(IndexElement(4)),
-	}}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("QueryJSONLocated() mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestQueryJSONRead(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		json    string
-		path    string
-		want    []any
-		wantErr bool
-	}{
-		{
-			name: "simple name selector",
-			json: `{"a": 1, "b": 2}`,
-			path: "$.a",
-			want: []any{json.Number("1")},
-		},
-		{
-			name: "array index selector",
-			json: `[10, 20, 30]`,
-			path: "$[1]",
-			want: []any{json.Number("20")},
-		},
-		{
-			name:    "invalid json",
-			json:    `{invalid}`,
-			path:    "$.a",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			path := MustParse(tt.path)
-			got, err := QueryJSONRead(strings.NewReader(tt.json), path)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			if diff := cmp.Diff(tt.want, []any(got)); diff != "" {
-				t.Errorf("Select() mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestQueryJSONReadLocated(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		json    string
-		path    string
-		want    LocatedNodeList
-		wantErr bool
-	}{
-		{
-			name: "simple name selector",
-			json: `{"a": 1, "b": 2}`,
-			path: "$.a",
-			want: LocatedNodeList{
-				{Value: json.Number("1"), Path: mustNormalizedPath(NameElement("a"))},
-			},
-		},
-		{
-			name:    "invalid json",
-			json:    `{invalid}`,
-			path:    "$.a",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			path := MustParse(tt.path)
-			got, err := QueryJSONReadLocated(strings.NewReader(tt.json), path)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("SelectLocated() mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestQueryJSON_ComplexDocument(t *testing.T) {
-	t.Parallel()
-
-	jsonDoc := `{
-		"store": {
-			"book": [
-				{
-					"category": "reference",
-					"author": "Nigel Rees",
-					"title": "Sayings of the Century",
-					"price": 8.95
-				},
-				{
-					"category": "fiction",
-					"author": "Evelyn Waugh",
-					"title": "Sword of Honour",
-					"price": 12.99
-				},
-				{
-					"category": "fiction",
-					"author": "Herman Melville",
-					"title": "Moby Dick",
-					"isbn": "0-553-21311-3",
-					"price": 8.99
-				}
-			],
-			"bicycle": {
-				"color": "red",
-				"price": 19.95
-			}
-		}
-	}`
-
-	t.Run("all book prices", func(t *testing.T) {
-		t.Parallel()
-
-		path := MustParse("$.store.book[*].price")
-		got, err := QueryJSON([]byte(jsonDoc), path)
-		require.NoError(t, err)
-		if diff := cmp.Diff([]any{json.Number("8.95"), json.Number("12.99"), json.Number("8.99")}, []any(got)); diff != "" {
-			t.Errorf("QueryJSON() mismatch (-want +got):\n%s", diff)
-		}
-	})
-
-	t.Run("all authors", func(t *testing.T) {
-		t.Parallel()
-
-		path := MustParse("$.store.book[*].author")
-		got, err := QueryJSON([]byte(jsonDoc), path)
-		require.NoError(t, err)
-		if diff := cmp.Diff([]any{"Nigel Rees", "Evelyn Waugh", "Herman Melville"}, []any(got)); diff != "" {
-			t.Errorf("QueryJSON() mismatch (-want +got):\n%s", diff)
-		}
-	})
-
-	t.Run("first book", func(t *testing.T) {
-		t.Parallel()
-
-		path := MustParse("$.store.book[0]")
-		got, err := QueryJSON([]byte(jsonDoc), path)
-		require.NoError(t, err)
-		require.Len(t, got, 1)
-		book := got[0].(map[string]any)
-		assert.Equal(t, "Sayings of the Century", book["title"])
-		assert.Equal(t, json.Number("8.95"), book["price"])
-	})
-}
-
-func BenchmarkQueryJSON(b *testing.B) {
-	jsonDoc := []byte(`{"store": {"book": [{"title": "Book 1", "price": 10}, {"title": "Book 2", "price": 20}]}}`)
-	path := MustParse("$.store.book[*].price")
-
-	b.ResetTimer()
-	for b.Loop() {
-		_, _ = QueryJSON(jsonDoc, path)
-	}
-}
-
-func BenchmarkQueryJSONLocated(b *testing.B) {
-	jsonDoc := []byte(`{"store": {"book": [{"title": "Book 1", "price": 10}, {"title": "Book 2", "price": 20}]}}`)
-	path := MustParse("$.store.book[*].price")
-
-	b.ResetTimer()
-	for b.Loop() {
-		_, _ = QueryJSONLocated(jsonDoc, path)
-	}
-}
-
-func BenchmarkQueryJSONRead(b *testing.B) {
-	jsonDoc := `{"store": {"book": [{"title": "Book 1", "price": 10}, {"title": "Book 2", "price": 20}]}}`
-	path := MustParse("$.store.book[*].price")
-
-	b.ResetTimer()
-	for b.Loop() {
-		_, _ = QueryJSONRead(strings.NewReader(jsonDoc), path)
-	}
-}
-
-func BenchmarkQueryJSONReadLocated(b *testing.B) {
-	jsonDoc := `{"store": {"book": [{"title": "Book 1", "price": 10}, {"title": "Book 2", "price": 20}]}}`
-	path := MustParse("$.store.book[*].price")
-
-	b.ResetTimer()
-	for b.Loop() {
-		_, _ = QueryJSONReadLocated(strings.NewReader(jsonDoc), path)
-	}
 }
 
 // BenchmarkSelect suite covering name, index, slice, wildcard, filter, and descendant selectors
@@ -2523,8 +1651,8 @@ func BenchmarkSelect_FilterQueries(b *testing.B) {
 	input := map[string]any{
 		"expensive": 15,
 		"numbers": []any{
-			json.Number("1e1000"),
-			json.Number("-1e-1000"),
+			stdjson.Number("1e1000"),
+			stdjson.Number("-1e-1000"),
 		},
 		"items": []any{
 			map[string]any{"name": "paper", "price": 5, "tags": []any{"office"}},
@@ -2560,8 +1688,8 @@ func BenchmarkSelect_FilterQueries(b *testing.B) {
 		b.Run(bm.name, func(b *testing.B) {
 			if bm.name == "large_decimal_exponent" {
 				require.Equal(b, NodeList{
-					json.Number("1e1000"),
-					json.Number("-1e-1000"),
+					stdjson.Number("1e1000"),
+					stdjson.Number("-1e-1000"),
 				}, bm.path.Select(input))
 			}
 			b.ReportAllocs()
@@ -2654,160 +1782,6 @@ func BenchmarkSelect_RealWorld_DeepJSON(b *testing.B) {
 	for b.Loop() {
 		_ = path.Select(input)
 	}
-}
-
-func TestValid(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		expr  string
-		valid bool
-	}{
-		{
-			name:  "valid simple path",
-			expr:  "$.store.book",
-			valid: true,
-		},
-		{
-			name:  "valid array index",
-			expr:  "$[0]",
-			valid: true,
-		},
-		{
-			name:  "valid wildcard",
-			expr:  "$[*]",
-			valid: true,
-		},
-		{
-			name:  "valid slice",
-			expr:  "$[0:5:2]",
-			valid: true,
-		},
-		{
-			name:  "valid descendant",
-			expr:  "$..book",
-			valid: true,
-		},
-		{
-			name:  "invalid missing root",
-			expr:  "store.book",
-			valid: false,
-		},
-		{
-			name:  "invalid current node root",
-			expr:  "@.store",
-			valid: false,
-		},
-		{
-			name:  "invalid syntax",
-			expr:  "$[",
-			valid: false,
-		},
-		{
-			name:  "invalid empty",
-			expr:  "",
-			valid: false,
-		},
-		{
-			name:  "valid complex path",
-			expr:  "$.store.book[*].author",
-			valid: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := Valid(tt.expr)
-			assert.Equal(t, tt.valid, got)
-		})
-	}
-}
-
-func TestQueryJSON_ErrUnmarshal(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		json string
-	}{
-		{
-			name: "invalid json syntax",
-			json: `{invalid}`,
-		},
-		{
-			name: "unclosed object",
-			json: `{"a": 1`,
-		},
-		{
-			name: "unclosed array",
-			json: `[1, 2, 3`,
-		},
-		{
-			name: "trailing comma",
-			json: `{"a": 1,}`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			path := MustParse("$.a")
-			_, err := QueryJSON([]byte(tt.json), path)
-			require.Error(t, err)
-			assert.ErrorIs(t, err, ErrUnmarshal)
-		})
-	}
-}
-
-func TestQueryJSONLocated_ErrUnmarshal(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		json string
-	}{
-		{
-			name: "invalid json syntax",
-			json: `{invalid}`,
-		},
-		{
-			name: "unclosed object",
-			json: `{"a": 1`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			path := MustParse("$.a")
-			_, err := QueryJSONLocated([]byte(tt.json), path)
-			require.Error(t, err)
-			assert.ErrorIs(t, err, ErrUnmarshal)
-		})
-	}
-}
-
-func TestQueryJSONRead_ErrUnmarshal(t *testing.T) {
-	t.Parallel()
-
-	path := MustParse("$.a")
-	_, err := QueryJSONRead(strings.NewReader(`{"a": 1`), path)
-
-	require.ErrorIs(t, err, ErrUnmarshal)
-}
-
-func TestQueryJSONReadLocated_ErrUnmarshal(t *testing.T) {
-	t.Parallel()
-
-	path := MustParse("$.a")
-	_, err := QueryJSONReadLocated(strings.NewReader(`{"a": 1`), path)
-
-	require.ErrorIs(t, err, ErrUnmarshal)
 }
 
 func TestDescendantSelectionHandlesDeepJSON(t *testing.T) {

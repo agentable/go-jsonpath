@@ -42,7 +42,7 @@ and path step representation are owned by implementation packages and by
   Public construction and append reject nil elements, negative indexes, and
   names outside the valid UTF-8 JSON string domain with `ErrInvalidPath`;
   located selection creates already-valid private steps from decoded JSON.
-- **Owner**: `types.go`.
+- **Owner**: `normalized.go`.
 
 ### Function Runtime Values
 

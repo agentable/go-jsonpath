@@ -1,12 +1,14 @@
 package compliance
 
 import (
-	"bytes"
 	_ "embed"
-	"encoding/json"
+	stdjson "encoding/json"
+	"errors"
 	"slices"
 	"testing"
 
+	"github.com/go-json-experiment/json"
+	"github.com/go-json-experiment/json/jsontext"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
@@ -116,9 +118,20 @@ func TestCompliance(t *testing.T) {
 	t.Parallel()
 
 	var suite ctsFile
-	dec := json.NewDecoder(bytes.NewReader(ctsJSON))
-	dec.UseNumber()
-	require.NoError(t, dec.Decode(&suite))
+	preserveNumbers := json.WithUnmarshalers(json.UnmarshalFromFunc(
+		func(decoder *jsontext.Decoder, value *any) error {
+			if decoder.PeekKind() != '0' {
+				return errors.ErrUnsupported
+			}
+			raw, err := decoder.ReadValue()
+			if err != nil {
+				return err
+			}
+			*value = stdjson.Number(raw)
+			return nil
+		},
+	))
+	require.NoError(t, json.Unmarshal(ctsJSON, &suite, preserveNumbers))
 
 	for _, tc := range suite.Tests {
 		t.Run(tc.Name, func(t *testing.T) {

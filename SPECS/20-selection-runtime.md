@@ -33,7 +33,7 @@ execution, and measured performance.
 - **Object order**: Ascending key byte order.
 - **Reverse order**: The exact reverse needed by stack-based descendant
   traversal so the popped result order remains canonical.
-- **Owner**: `internal/ast/eval.go`.
+- **Owner**: `internal/ast/child.go`.
 
 ### Selector Semantics
 
@@ -120,6 +120,8 @@ execution, and measured performance.
 - Booleans and nulls can satisfy `<=` or `>=` only through equality; they have
   no less-than or greater-than order.
 - Logical and Nodes runtime values are not comparable as JSON values.
+- Exact numeric recognition and comparison are owned by
+  `internal/ast/number.go`; filter expressions consume that private result.
 
 **Decision**
 
