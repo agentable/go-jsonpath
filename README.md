@@ -64,11 +64,11 @@ func main() {
 | Task | API |
 |---|---|
 | Compile expressions | `Parse`, `MustParse`, `Valid`, `NewParser` |
-| Inspect errors | `ParseError`, `ErrPathParse`, `ErrFunction`, `ErrUnmarshal`, `ErrInvalidPath` |
+| Inspect errors | `ParseError`, `ErrPathParse`, `ErrFunction`, `ErrUnmarshal`, `ErrInvalidPath`, `ErrIndexOutOfBounds` |
 | Query decoded values | `Path.Select`, `Path.SelectLocated` |
 | Query JSON bytes/readers | `QueryJSON`, `QueryJSONRead`, `QueryJSONLocated`, `QueryJSONReadLocated` |
 | Iterate values | `NodeList.All`, `LocatedNodeList.All`, `LocatedNodeList.Values`, `LocatedNodeList.Paths` |
-| Work with paths | `NormalizedPath.String`, `NormalizedPath.Pointer`, `NormalizedPath.Elements`, `NormalizedPath.Append` |
+| Work with paths | `NormalizedPath.String`, `NormalizedPath.Pointer`, `NormalizedPath.ElementChecked`, `NormalizedPath.Elements`, `NormalizedPath.Append` |
 | Extend filters | `WithFunctions`, `NewValueFunction`, `NewLogicalFunction`, `NewNodesFunction` |
 
 See [pkg.go.dev/github.com/agentable/go-jsonpath](https://pkg.go.dev/github.com/agentable/go-jsonpath) for complete package documentation.
@@ -120,7 +120,9 @@ for node := range located.All() {
 `NormalizedPath` is immutable. `NewNormalizedPath` and `Append` reject nil
 elements, negative indexes, and name elements that are not valid UTF-8 with
 `ErrInvalidPath`. Normalized names belong to the JSON string domain. Read
-elements through `Element` or `Elements`.
+runtime indexes through `ElementChecked`, which returns `ErrIndexOutOfBounds`,
+or copy all elements with `Elements`. `Element` is the compatibility wrapper
+for statically known indexes and panics on an out-of-bounds index.
 `LocatedNodeList` is a nodelist in query order, not a set. Use `Values` and `Paths` to iterate just values or paths. `Sort` and `Deduplicate` are caller opt-in operations; `Deduplicate` is path-based, keeps the first node for each path, and ignores value equality.
 
 ```go

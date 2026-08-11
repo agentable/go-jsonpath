@@ -38,7 +38,7 @@ func Parse(expr string) (Path, error) {
 	return p.Parse(expr)
 }
 
-// MustParse compiles a JSONPath expression. Panics on failure.
+// MustParse is like [Parse] but panics if expr is invalid.
 func MustParse(expr string) Path {
 	path, err := Parse(expr)
 	if err != nil {

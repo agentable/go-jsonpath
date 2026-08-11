@@ -167,9 +167,23 @@ func (p NormalizedPath) Len() int {
 	return len(p.elements)
 }
 
-// Element returns the i'th path element.
+// Element is like [NormalizedPath.ElementChecked] but panics if i is out of
+// bounds.
 func (p NormalizedPath) Element(i int) PathElement {
-	return p.elements[i].element()
+	elem, err := p.ElementChecked(i)
+	if err != nil {
+		panic(fmt.Errorf("jsonpath: NormalizedPath.Element: %w", err))
+	}
+	return elem
+}
+
+// ElementChecked returns the i'th path element, or [ErrIndexOutOfBounds] if i
+// is negative or greater than or equal to [NormalizedPath.Len].
+func (p NormalizedPath) ElementChecked(i int) (PathElement, error) {
+	if i < 0 || i >= len(p.elements) {
+		return nil, fmt.Errorf("%w: index %d, length %d", ErrIndexOutOfBounds, i, len(p.elements))
+	}
+	return p.elements[i].element(), nil
 }
 
 // Elements returns a copy of p's path elements.

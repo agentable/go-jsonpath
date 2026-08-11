@@ -3,6 +3,7 @@ package functions
 import (
 	"fmt"
 	"regexp"
+	"regexp/syntax"
 	"sync"
 	"testing"
 
@@ -76,6 +77,22 @@ func TestClearRegexCache(t *testing.T) {
 	_, ok = reCache.Load(regexpCacheKey{pattern: otherPattern})
 	assert.False(t, ok)
 	assert.Zero(t, reCacheSize.Load())
+}
+
+func TestMustParseSyntaxPanicPreservesCause(t *testing.T) {
+	var recovered any
+	func() {
+		defer func() {
+			recovered = recover()
+		}()
+		mustParseSyntax("[", syntax.Perl)
+	}()
+
+	panicErr, ok := recovered.(error)
+	require.True(t, ok, "panic value = %#v, want error", recovered)
+	assert.ErrorContains(t, panicErr, "go-jsonpath/internal/functions: parse fixed regexp syntax")
+	var syntaxErr *syntax.Error
+	require.ErrorAs(t, panicErr, &syntaxErr)
 }
 
 func TestBuiltins(t *testing.T) {

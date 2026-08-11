@@ -1,6 +1,7 @@
 package jsonpath
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -412,6 +413,43 @@ func TestNormalizedPath_ImmutableBoundaries(t *testing.T) {
 	assert.Equal(t, 2, next.Len())
 	assert.Equal(t, NameElement("a"), next.Element(0))
 	assert.Equal(t, IndexElement(0), next.Element(1))
+}
+
+func TestNormalizedPath_ElementChecked(t *testing.T) {
+	t.Parallel()
+
+	path := mustNormalizedPath(NameElement("store"), IndexElement(0))
+	elem, err := path.ElementChecked(1)
+	require.NoError(t, err)
+	assert.Equal(t, IndexElement(0), elem)
+
+	for _, index := range []int{-1, path.Len()} {
+		elem, err = path.ElementChecked(index)
+		assert.Nil(t, elem)
+		require.ErrorIs(t, err, ErrIndexOutOfBounds)
+		assert.ErrorContains(t, err, fmt.Sprintf("index %d", index))
+	}
+}
+
+func TestNormalizedPath_ElementPanicsWithCheckedCause(t *testing.T) {
+	path := mustNormalizedPath(NameElement("store"), IndexElement(0))
+
+	for _, index := range []int{-1, path.Len()} {
+		t.Run(fmt.Sprintf("index_%d", index), func(t *testing.T) {
+			var recovered any
+			func() {
+				defer func() {
+					recovered = recover()
+				}()
+				path.Element(index)
+			}()
+
+			panicErr, ok := recovered.(error)
+			require.True(t, ok, "panic value = %#v, want error", recovered)
+			require.ErrorIs(t, panicErr, ErrIndexOutOfBounds)
+			assert.ErrorContains(t, panicErr, "jsonpath: NormalizedPath.Element")
+		})
+	}
 }
 
 func BenchmarkNewNormalizedPath(b *testing.B) {

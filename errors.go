@@ -14,6 +14,8 @@ var (
 	ErrUnmarshal = errors.New("jsonpath: unmarshal error")
 	// ErrInvalidPath is returned for an invalid compiled or normalized path.
 	ErrInvalidPath = errors.New("jsonpath: invalid path")
+	// ErrIndexOutOfBounds is returned when a normalized path element index is outside the path.
+	ErrIndexOutOfBounds = errors.New("jsonpath: normalized path element index out of bounds")
 )
 
 // ParseError describes a JSONPath parse failure in a program-readable form.

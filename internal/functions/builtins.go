@@ -3,6 +3,7 @@
 package functions
 
 import (
+	"fmt"
 	"regexp"
 	"regexp/syntax"
 	"sync"
@@ -218,7 +219,7 @@ var nonLineBreak = mustParseSyntax(`[^\n\r]`, syntax.Perl)
 func mustParseSyntax(pattern string, flags syntax.Flags) *syntax.Regexp {
 	re, err := syntax.Parse(pattern, flags)
 	if err != nil {
-		panic("functions: bad constant pattern: " + err.Error())
+		panic(fmt.Errorf("go-jsonpath/internal/functions: parse fixed regexp syntax: %w", err))
 	}
 	return re
 }

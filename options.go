@@ -303,7 +303,7 @@ func newParseError(err error) *ParseError {
 	}
 }
 
-// MustParse compiles a JSONPath expression. Panics on failure.
+// MustParse is like [Parser.Parse] but panics if expr is invalid.
 func (p *Parser) MustParse(expr string) Path {
 	path, err := p.Parse(expr)
 	if err != nil {
