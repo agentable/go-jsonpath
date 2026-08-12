@@ -396,6 +396,59 @@ func TestParse_ReturnsStructuredParseError(t *testing.T) {
 	assert.Contains(t, parseErr.Snippet, expr)
 }
 
+func TestParse_RejectsInvalidUTF8(t *testing.T) {
+	t.Parallel()
+
+	invalid := string([]byte{0xff})
+	for _, tc := range []struct {
+		name       string
+		expr       string
+		wantOffset int
+	}{
+		{name: "inside quoted selector", expr: "$['valid" + invalid + "name']", wantOffset: 8},
+		{name: "after escape", expr: "$['\\" + invalid + "']", wantOffset: 4},
+		{name: "outside string", expr: "$." + invalid, wantOffset: 2},
+		{name: "inside shorthand name", expr: "$.valid" + invalid + "name", wantOffset: 7},
+		{name: "byte offset after multibyte rune", expr: "$['\u00e9" + invalid + "']", wantOffset: 5},
+		{name: "after number minus", expr: "$[-" + invalid + "]", wantOffset: 3},
+		{name: "after decimal point", expr: "$[1." + invalid + "]", wantOffset: 4},
+		{name: "after exponent", expr: "$[1e" + invalid + "]", wantOffset: 4},
+		{name: "after exponent sign", expr: "$[1e+" + invalid + "]", wantOffset: 5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Parse(tc.expr)
+			require.ErrorIs(t, err, ErrPathParse)
+
+			var parseErr *ParseError
+			require.ErrorAs(t, err, &parseErr)
+			assert.Equal(t, tc.wantOffset, parseErr.Offset)
+			assert.NotEmpty(t, parseErr.Reason)
+		})
+	}
+
+	for _, tc := range []struct {
+		name string
+		expr string
+	}{
+		{name: "literal replacement rune", expr: "$['\uFFFD']"},
+		{name: "escaped replacement rune", expr: `$['\uFFFD']`},
+		{name: "shorthand replacement rune", expr: "$.\uFFFD"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			path, err := Parse(tc.expr)
+			require.NoError(t, err)
+
+			got := []any(path.Select(map[string]any{"\uFFFD": "replacement"}))
+			if diff := cmp.Diff([]any{"replacement"}, got); diff != "" {
+				t.Errorf("Select() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestParse_NumericConversionErrorsArePositioned(t *testing.T) {
 	t.Parallel()
 

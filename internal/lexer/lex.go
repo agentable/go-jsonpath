@@ -183,6 +183,10 @@ func (l *Lexer) Scan() Token {
 	}
 
 	start := l.rPos
+	if l.invalidUTF8() {
+		l.next()
+		return l.errToken(start, "invalid UTF-8")
+	}
 
 	switch l.r {
 	case '$':
@@ -297,6 +301,11 @@ func (l *Lexer) Scan() Token {
 func (l *Lexer) scanIdent() Token {
 	start := l.rPos
 	for isNameChar(l.r) {
+		if l.invalidUTF8() {
+			invalidPos := l.rPos
+			l.next()
+			return l.errToken(invalidPos, "invalid UTF-8")
+		}
 		l.next()
 	}
 	raw := l.src[start:l.rPos]
@@ -320,7 +329,7 @@ func (l *Lexer) scanNumber() Token {
 	if l.r == '-' {
 		l.next()
 		if !isDigit(l.r) {
-			return l.errToken(start, "expected digit after '-'")
+			return l.scanNumberError(start, "expected digit after '-'")
 		}
 	}
 
@@ -341,7 +350,7 @@ func (l *Lexer) scanNumber() Token {
 		kind = Number
 		l.next()
 		if !isDigit(l.r) {
-			return l.errToken(start, "expected digit after '.'")
+			return l.scanNumberError(start, "expected digit after '.'")
 		}
 		for isDigit(l.r) {
 			l.next()
@@ -355,7 +364,7 @@ func (l *Lexer) scanNumber() Token {
 			l.next()
 		}
 		if !isDigit(l.r) {
-			return l.errToken(start, "expected digit in exponent")
+			return l.scanNumberError(start, "expected digit in exponent")
 		}
 		for isDigit(l.r) {
 			l.next()
@@ -363,6 +372,15 @@ func (l *Lexer) scanNumber() Token {
 	}
 
 	return Token{Kind: kind, Start: start, End: l.rPos}
+}
+
+func (l *Lexer) scanNumberError(start int, reason string) Token {
+	if l.invalidUTF8() {
+		start = l.rPos
+		l.next()
+		reason = "invalid UTF-8"
+	}
+	return l.errToken(start, reason)
 }
 
 // scanString scans a single- or double-quoted string literal per RFC 9535.
@@ -376,12 +394,22 @@ func (l *Lexer) scanString() Token {
 	var buf strings.Builder
 
 	for l.r >= 0 {
+		if l.invalidUTF8() {
+			start = l.rPos
+			l.next()
+			return l.errToken(start, "invalid UTF-8")
+		}
 		switch {
 		case l.r == quote:
 			l.next() // consume closing quote
 			return Token{Kind: String, Start: start, End: l.rPos, Value: buf.String()}
 		case l.r == '\\':
 			if !l.scanEscape(quote, &buf) {
+				if l.invalidUTF8() {
+					start = l.rPos
+					l.next()
+					return l.errToken(start, "invalid UTF-8")
+				}
 				return l.errToken(start, "invalid escape sequence")
 			}
 		case isUnescaped(l.r, quote):
@@ -393,6 +421,10 @@ func (l *Lexer) scanString() Token {
 	}
 
 	return l.errToken(start, "unterminated string")
+}
+
+func (l *Lexer) invalidUTF8() bool {
+	return l.r == utf8.RuneError && l.nextPos == l.rPos+1
 }
 
 // scanEscape handles a single escape sequence starting at '\\'. On entry l.r

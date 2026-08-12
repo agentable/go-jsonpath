@@ -1220,6 +1220,38 @@ func TestPath_SelectLocatedValuesMatchSelect(t *testing.T) {
 	}
 }
 
+func TestPath_SelectionDoesNotMutateInput(t *testing.T) {
+	t.Parallel()
+
+	newInput := func() map[string]any {
+		return map[string]any{
+			"items": []any{
+				map[string]any{"enabled": true, "nested": map[string]any{"value": 1}},
+				map[string]any{"enabled": false, "nested": map[string]any{"value": 2}},
+			},
+		}
+	}
+	path := MustParse("$.items[?@.enabled == true]..value")
+
+	for _, tc := range []struct {
+		name string
+		run  func(Path, any)
+	}{
+		{name: "Select", run: func(path Path, input any) { path.Select(input) }},
+		{name: "SelectLocated", run: func(path Path, input any) { path.SelectLocated(input) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := newInput()
+			tc.run(path, input)
+			if diff := cmp.Diff(newInput(), input); diff != "" {
+				t.Errorf("selection mutated input (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestPath_SelectLocated_NilQuery(t *testing.T) {
 	t.Parallel()
 
