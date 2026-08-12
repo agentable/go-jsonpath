@@ -75,6 +75,11 @@ See [pkg.go.dev/github.com/agentable/go-jsonpath](https://pkg.go.dev/github.com/
 
 `Valid(expr)` checks whether `Parse(expr)` succeeds with the default built-in functions; use `NewParser` and `Parser.Parse` for expressions that rely on custom functions. `QueryJSON*` helpers preserve JSON numbers as `encoding/json.Number`; invalid `Path` values fail with `ErrInvalidPath` before reading or decoding. Callers that need another number representation, decoder policy, or streaming behavior should decode outside this package and then call `Path.Select` or `Path.SelectLocated`.
 
+The zero `Parser` value uses the same built-in functions as `Parse` and a
+no-option `NewParser`. Use `NewParser` only when configuring extension
+functions. Non-nil parsers are immutable after construction and safe for
+concurrent parsing.
+
 Top-level paths start with `$`. The current-node identifier `@` is available only
 inside filter expressions; using it as the root returns a positioned
 `ErrPathParse` diagnostic.

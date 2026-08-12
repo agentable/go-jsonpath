@@ -31,11 +31,7 @@ func (p *Path) UnmarshalText(text []byte) error {
 
 // Parse compiles a JSONPath expression. Returns ErrPathParse on failure.
 func Parse(expr string) (Path, error) {
-	p, err := NewParser()
-	if err != nil {
-		return Path{}, err
-	}
-	return p.Parse(expr)
+	return parse(expr, builtinRegistry())
 }
 
 // MustParse is like [Parse] but panics if expr is invalid.

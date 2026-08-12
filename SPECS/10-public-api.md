@@ -44,6 +44,13 @@ and path step representation are owned by implementation packages and by
   located selection creates already-valid private steps from decoded JSON.
 - **Owner**: `normalized.go`.
 
+### `Parser`
+
+- **Definition**: An immutable JSONPath compiler with optional extension functions.
+- **Lifecycle**: The non-nil zero value and `NewParser()` both use the RFC 9535 built-ins; `NewParser(opts...)` is required only for extension functions.
+- **Invariants**: Non-nil parsers are safe for concurrent reuse. A nil receiver is programmer misuse outside the recoverable error contract.
+- **Owner**: `options.go`.
+
 ### Function Runtime Values
 
 - **Definition**: Public typed values used only by filter extension functions:
@@ -63,6 +70,11 @@ and path step representation are owned by implementation packages and by
   expressions. A top-level `@` failure retains positioned `ParseError` details.
 - `Valid(expr)` reports whether `Parse(expr)` succeeds with the default parser
   and built-in functions. It is not custom-parser validity.
+- A non-nil zero `Parser` uses the same built-ins, parse diagnostics, and
+  concurrency contract as a no-option `NewParser()`.
+- `NewParser` is required for options. Configured registries remain immutable
+  after construction, and package `Parse` uses the same default registry
+  authority as a zero parser.
 - On parse failure, the returned error satisfies `ErrPathParse`.
 - `MustParse(expr)` panics with an error satisfying `ErrPathParse` on failure.
 - A zero `Path` selects nothing and has an empty string representation.

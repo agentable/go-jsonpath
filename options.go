@@ -123,7 +123,8 @@ func WithFunctions(fns ...Function) Option {
 }
 
 // Parser parses JSONPath expressions into [Path] values, optionally
-// configured with extension functions.
+// configured with extension functions. The zero value uses the RFC 9535
+// built-in functions and is safe for concurrent use.
 type Parser struct {
 	registry map[string]ast.Function
 }
@@ -241,6 +242,10 @@ func validFunctionName(name string) bool {
 // NewParser creates a new [Parser] configured by opts. Invalid options return
 // an error satisfying [ErrFunction].
 func NewParser(opts ...Option) (*Parser, error) {
+	if len(opts) == 0 {
+		return &Parser{}, nil
+	}
+
 	cfg := parserOptions{
 		functions: make(map[string]ast.Function),
 	}
@@ -262,7 +267,15 @@ func NewParser(opts ...Option) (*Parser, error) {
 
 // Parse compiles a JSONPath expression. Returns [ErrPathParse] on failure.
 func (p *Parser) Parse(expr string) (Path, error) {
-	internalParser, err := parser.New(expr, p.registry)
+	registry := p.registry
+	if registry == nil {
+		registry = builtinRegistry()
+	}
+	return parse(expr, registry)
+}
+
+func parse(expr string, registry map[string]ast.Function) (Path, error) {
+	internalParser, err := parser.New(expr, registry)
 	if err != nil {
 		return Path{}, wrapPathParseError(err)
 	}

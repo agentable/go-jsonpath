@@ -1,6 +1,8 @@
 package jsonpath
 
 import (
+	"errors"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -25,7 +27,109 @@ func TestNewParser_NoOptions(t *testing.T) {
 	p, err := NewParser()
 	require.NoError(t, err)
 	require.NotNil(t, p)
-	assert.Len(t, p.registry, 5)
+}
+
+func TestParser_ZeroValueUsesDefaults(t *testing.T) {
+	t.Parallel()
+
+	var zero Parser
+
+	root, err := zero.Parse(`$`)
+	require.NoError(t, err)
+	assert.Equal(t, NodeList{map[string]any{"name": "book"}}, root.Select(map[string]any{"name": "book"}))
+
+	name, err := zero.Parse(`$.name`)
+	require.NoError(t, err)
+	assert.Equal(t, NodeList{"book"}, name.Select(map[string]any{"name": "book"}))
+
+	input := []any{
+		map[string]any{"name": "foo"},
+		map[string]any{"name": "food"},
+		map[string]any{"name": "bar"},
+	}
+	for _, tc := range []struct {
+		name string
+		expr string
+		want NodeList
+	}{
+		{name: "value built-in", expr: `$[?length(@.name) == 3]`, want: NodeList{input[0], input[2]}},
+		{name: "logical built-in", expr: `$[?match(@.name, "foo")]`, want: NodeList{input[0]}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path, err := zero.Parse(tc.expr)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, path.Select(input))
+		})
+	}
+
+	assert.Equal(t, `$[?length(@) == 3]`, zero.MustParse(`$[?length(@) == 3]`).String())
+}
+
+func TestParser_ZeroValuePreservesParseDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	var zero Parser
+	_, zeroErr := zero.Parse("invalid")
+	_, packageErr := Parse("invalid")
+	require.ErrorIs(t, zeroErr, ErrPathParse)
+	require.ErrorIs(t, packageErr, ErrPathParse)
+
+	var zeroParseErr, packageParseErr *ParseError
+	require.ErrorAs(t, zeroErr, &zeroParseErr)
+	require.ErrorAs(t, packageErr, &packageParseErr)
+	assert.Equal(t, packageParseErr.Offset, zeroParseErr.Offset)
+	assert.Equal(t, packageParseErr.Reason, zeroParseErr.Reason)
+	assert.Equal(t, packageParseErr.Snippet, zeroParseErr.Snippet)
+	assert.Equal(t,
+		errors.Is(packageParseErr.Cause, parser.ErrParsePosition),
+		errors.Is(zeroParseErr.Cause, parser.ErrParsePosition),
+	)
+}
+
+func TestParser_ZeroValueMustParsePanicsWithErrPathParse(t *testing.T) {
+	t.Parallel()
+
+	var zero Parser
+	defer func() {
+		err, ok := recover().(error)
+		require.True(t, ok)
+		require.ErrorIs(t, err, ErrPathParse)
+	}()
+	zero.MustParse("invalid")
+}
+
+func TestParser_DefaultsSupportConcurrentReuse(t *testing.T) {
+	t.Parallel()
+
+	constructed, err := NewParser()
+	require.NoError(t, err)
+	parsers := map[string]*Parser{
+		"zero":        {},
+		"constructed": constructed,
+	}
+
+	for name, parser := range parsers {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			const workers = 32
+			errs := make(chan error, workers)
+			var wg sync.WaitGroup
+			for range workers {
+				wg.Go(func() {
+					_, err := parser.Parse(`$[?length(@) > 0]`)
+					errs <- err
+				})
+			}
+			wg.Wait()
+			close(errs)
+			for err := range errs {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestNewParser_WithFunctions(t *testing.T) {
