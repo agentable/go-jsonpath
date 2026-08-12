@@ -164,6 +164,11 @@ func TestPath_String(t *testing.T) {
 			want: "$..[\"book\"]",
 		},
 		{
+			name: "name selector control escapes",
+			expr: `$["line\b\f\n\r\t\"\\\u0001"]`,
+			want: `$["line\b\f\n\r\t\"\\\u0001"]`,
+		},
+		{
 			name: "filter comparison",
 			expr: "$[?@.price < 10]",
 			want: "$[?@[\"price\"] < 10]",
@@ -188,6 +193,36 @@ func TestPath_String(t *testing.T) {
 			expr: `$[?!match(@.name, "foo")]`,
 			want: `$[?!match(@["name"], "foo")]`,
 		},
+		{
+			name: "filter existence",
+			expr: "$[?@.isbn]",
+			want: `$[?@["isbn"]]`,
+		},
+		{
+			name: "filter negated parentheses",
+			expr: "$[?!(@.price >= 10)]",
+			want: `$[?!(@["price"] >= 10)]`,
+		},
+		{
+			name: "filter literal compared with query",
+			expr: `$[?"paper" != @.kind]`,
+			want: `$[?"paper" != @["kind"]]`,
+		},
+		{
+			name: "filter query compared with root query",
+			expr: "$[?@.price <= $.limit]",
+			want: `$[?@["price"] <= $["limit"]]`,
+		},
+		{
+			name: "filter nested function comparison",
+			expr: "$[?length(value(@.name)) > 2]",
+			want: `$[?length(value(@["name"])) > 2]`,
+		},
+		{
+			name: "filter escaped string literal",
+			expr: `$[?@.label == "line\n\"quoted\""]`,
+			want: `$[?@["label"] == "line\n\"quoted\""]`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -208,32 +243,63 @@ func TestPath_String(t *testing.T) {
 func TestPath_String_RoundTripFilterExpressions(t *testing.T) {
 	t.Parallel()
 
-	input := []any{
-		map[string]any{"name": "foo", "price": 8, "a": 1, "b": true, "c": nil},
-		map[string]any{"name": "bar", "price": 12, "a": 1, "b": false, "c": "x"},
+	first := map[string]any{"name": "foo", "price": 8, "a": 1, "b": true, "c": nil, "isbn": "present"}
+	second := map[string]any{"name": "bar", "price": 12, "a": 1, "b": false, "c": "x"}
+	input := []any{first, second}
+	tests := []struct {
+		name  string
+		expr  string
+		input any
+		want  []any
+	}{
+		{name: "comparison", expr: "$[?@.price < 10]", input: input, want: []any{first}},
+		{name: "function", expr: `$[?match(@.name, "foo")]`, input: input, want: []any{first}},
+		{
+			name:  "logical expression",
+			expr:  "$[?@.a == 1 && (@.b == true || @.c == null)]",
+			input: input,
+			want:  []any{first},
+		},
+		{name: "negated existence", expr: "$[?!@.missing]", input: input, want: []any{first, second}},
+		{name: "negated function", expr: `$[?!match(@.name, "foo")]`, input: input, want: []any{second}},
+		{name: "function comparison", expr: "$[?length(@.name) == 3]", input: input, want: []any{first, second}},
+		{name: "existence", expr: "$[?@.isbn]", input: input, want: []any{first}},
+		{name: "negated parentheses", expr: "$[?!(@.price >= 10)]", input: input, want: []any{first}},
+		{name: "literal operand", expr: `$[?"paper" != @.name]`, input: input, want: []any{first, second}},
+		{
+			name: "root query operand",
+			expr: "$[?@.price <= $.limit]",
+			input: map[string]any{
+				"limit": 10,
+				"match": first,
+				"miss":  second,
+			},
+			want: []any{first},
+		},
+		{name: "nested function", expr: "$[?length(value(@.name)) > 2]", input: input, want: []any{first, second}},
+		{
+			name:  "escaped string literal",
+			expr:  `$[?@.name == "line\n\"quoted\""]`,
+			input: []any{map[string]any{"name": "line\n\"quoted\""}, first},
+			want:  []any{map[string]any{"name": "line\n\"quoted\""}},
+		},
 	}
 
-	for _, expr := range []string{
-		"$[?@.price < 10]",
-		`$[?match(@.name, "foo")]`,
-		"$[?@.a == 1 && (@.b == true || @.c == null)]",
-		"$[?!@.missing]",
-		`$[?!match(@.name, "foo")]`,
-		"$[?length(@.name) == 3]",
-	} {
-		t.Run(expr, func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			original := MustParse(expr)
+			original := MustParse(test.expr)
 			text, err := original.MarshalText()
 			require.NoError(t, err)
 
 			reparsed, err := Parse(string(text))
 			require.NoError(t, err)
 
-			originalResult := []any(original.Select(input))
-			reparsedResult := []any(reparsed.Select(input))
-			if diff := cmp.Diff(originalResult, reparsedResult); diff != "" {
+			if diff := cmp.Diff(test.want, []any(original.Select(test.input))); diff != "" {
+				t.Errorf("Select() mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(test.want, []any(reparsed.Select(test.input))); diff != "" {
 				t.Errorf("round-trip Select() mismatch (-want +got):\n%s", diff)
 			}
 		})

@@ -714,12 +714,49 @@ func TestPath_Select_ExactLargeUnsignedIntegerComparison(t *testing.T) {
 func TestPath_Select_ExactDecimalComparison(t *testing.T) {
 	t.Parallel()
 
-	input := []any{stdjson.Number("0.1")}
+	decimal := stdjson.Number("0.1")
+	float := float64(0.1)
 	path := MustParse(`$[?@ == 0.1]`)
 	assert.Equal(t, `$[?@ == 0.1]`, path.String())
+	want := []any{decimal}
 
-	if diff := cmp.Diff(input, []any(path.Select(input))); diff != "" {
-		t.Errorf("Select() mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(want, []any(path.Select([]any{decimal, float}))); diff != "" {
+		t.Errorf("Select() exact decimal comparison mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(want, slices.Collect(path.SelectLocated([]any{decimal, float}).Values())); diff != "" {
+		t.Errorf("SelectLocated().Values() exact decimal comparison mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]any{float}, []any(MustParse(`$[?@ > 0.1]`).Select([]any{decimal, float}))); diff != "" {
+		t.Errorf("Select() positive binary float ordering mismatch (-want +got):\n%s", diff)
+	}
+
+	negativeDecimal := stdjson.Number("-0.1")
+	negativeFloat := float64(-0.1)
+	if diff := cmp.Diff(
+		[]any{negativeFloat},
+		[]any(MustParse(`$[?@ < -0.1]`).Select([]any{negativeDecimal, negativeFloat})),
+	); diff != "" {
+		t.Errorf("Select() negative binary float ordering mismatch (-want +got):\n%s", diff)
+	}
+
+	zeroInput := []any{-0.5, math.Copysign(0, -1), 0.5}
+	for _, tc := range []struct {
+		name string
+		expr string
+		want []any
+	}{
+		{name: "negative float before decimal zero", expr: "$[?@ < 0]", want: []any{-0.5}},
+		{name: "negative zero equals decimal zero", expr: "$[?@ == 0]", want: []any{zeroInput[1]}},
+		{name: "positive float after decimal zero", expr: "$[?@ > 0]", want: []any{0.5}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := MustParse(tc.expr).Select(zeroInput)
+			if diff := cmp.Diff(tc.want, []any(got)); diff != "" {
+				t.Errorf("Select() decimal/float ordering mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -1084,6 +1121,15 @@ func TestPath_SelectLocated_MultipleSegments(t *testing.T) {
 	}
 }
 
+func TestPath_SelectLocated_MissingIntermediate(t *testing.T) {
+	t.Parallel()
+
+	input := map[string]any{"existing": map[string]any{"child": true}}
+	emptyPath := MustParse("$.missing.child")
+	assert.Empty(t, emptyPath.SelectLocated(input))
+	assert.Empty(t, emptyPath.Select(input))
+}
+
 func TestPath_SelectLocated_DescendantSelector(t *testing.T) {
 	t.Parallel()
 
@@ -1113,6 +1159,68 @@ func TestPath_SelectLocated_DescendantSelector(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("SelectLocated() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestPath_SelectLocated_DescendantFilter(t *testing.T) {
+	t.Parallel()
+
+	filterInput := map[string]any{
+		"z": []any{
+			map[string]any{"name": "z", "enabled": true},
+		},
+		"a": map[string]any{
+			"nested": []any{
+				map[string]any{"name": "a", "enabled": true},
+				map[string]any{"name": "ignored", "enabled": false},
+			},
+		},
+		"m": map[string]any{"name": "m", "enabled": true},
+	}
+	filterPath := MustParse("$..[?@.enabled == true].name")
+	filterGot := filterPath.SelectLocated(filterInput)
+	filterWant := LocatedNodeList{
+		{Value: "m", Path: mustNormalizedPath(NameElement("m"), NameElement("name"))},
+		{
+			Value: "a",
+			Path: mustNormalizedPath(
+				NameElement("a"),
+				NameElement("nested"),
+				IndexElement(0),
+				NameElement("name"),
+			),
+		},
+		{Value: "z", Path: mustNormalizedPath(NameElement("z"), IndexElement(0), NameElement("name"))},
+	}
+	if diff := cmp.Diff(filterWant, filterGot); diff != "" {
+		t.Errorf("SelectLocated() descendant filter mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]any(filterPath.Select(filterInput)), slices.Collect(filterGot.Values())); diff != "" {
+		t.Errorf("SelectLocated().Values() descendant filter mismatch Select() (-want +got):\n%s", diff)
+	}
+}
+
+func TestPath_SelectLocated_DescendantMultiSelector(t *testing.T) {
+	t.Parallel()
+
+	multiInput := map[string]any{
+		"name": "root",
+		"a":    []any{map[string]any{"name": "nested"}, "tail"},
+		"z":    []any{"zero"},
+	}
+	multiPath := MustParse(`$..["name",0]`)
+	multiGot := multiPath.SelectLocated(multiInput)
+	multiWant := LocatedNodeList{
+		{Value: "root", Path: mustNormalizedPath(NameElement("name"))},
+		{Value: map[string]any{"name": "nested"}, Path: mustNormalizedPath(NameElement("a"), IndexElement(0))},
+		{Value: "nested", Path: mustNormalizedPath(NameElement("a"), IndexElement(0), NameElement("name"))},
+		{Value: "zero", Path: mustNormalizedPath(NameElement("z"), IndexElement(0))},
+	}
+	if diff := cmp.Diff(multiWant, multiGot); diff != "" {
+		t.Errorf("SelectLocated() descendant multi-selector mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]any(multiPath.Select(multiInput)), slices.Collect(multiGot.Values())); diff != "" {
+		t.Errorf("SelectLocated().Values() descendant multi-selector mismatch Select() (-want +got):\n%s", diff)
 	}
 }
 
