@@ -1,9 +1,8 @@
 # JSONPath
-
-[![Go Version](https://img.shields.io/badge/go-1.26.5%2B-blue.svg)](https://go.dev/)
-[![Go Reference](https://pkg.go.dev/badge/github.com/agentable/go-jsonpath.svg)](https://pkg.go.dev/github.com/agentable/go-jsonpath)
 [![License](https://img.shields.io/badge/license-Agentable%20Commercial-purple.svg)](LICENSE)
 [![RFC 9535](https://img.shields.io/badge/RFC-9535-green)](https://www.rfc-editor.org/rfc/rfc9535)
+
+[![Go Reference](https://pkg.go.dev/badge/github.com/agentable/go-jsonpath.svg)](https://pkg.go.dev/github.com/agentable/go-jsonpath)
 
 A Go implementation of RFC 9535 JSONPath with compliance-suite coverage, located results, and typed filter function extensions
 
@@ -24,7 +23,6 @@ A Go implementation of RFC 9535 JSONPath with compliance-suite coverage, located
 go get github.com/agentable/go-jsonpath
 ```
 
-Requires **Go 1.26.5+**.
 
 ## Quick Start
 

@@ -1,7 +1,7 @@
 package jsonpath
 
 import (
-	stdjson "encoding/json"
+	jsonv1 "encoding/json"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -81,7 +81,7 @@ var preserveJSONNumbers = json.WithUnmarshalers(json.UnmarshalFromFunc(
 		if err != nil {
 			return err
 		}
-		*dst = stdjson.Number(src)
+		*dst = jsonv1.Number(src)
 		return nil
 	},
 ))

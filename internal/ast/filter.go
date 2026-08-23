@@ -2,7 +2,7 @@
 package ast
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
 	"strconv"
 	"strings"
 
@@ -376,7 +376,7 @@ func writeLiteral(buf *strings.Builder, val any) {
 		buf.WriteString(strconv.FormatFloat(float64(v), 'g', -1, 32))
 	case float64:
 		buf.WriteString(strconv.FormatFloat(v, 'g', -1, 64))
-	case json.Number:
+	case jsonv1.Number:
 		buf.WriteString(string(v))
 	default:
 		buf.WriteByte('?')

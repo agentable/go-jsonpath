@@ -1,7 +1,7 @@
 package ast
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
 	"math"
 	"testing"
 
@@ -28,8 +28,8 @@ func TestIsNumeric(t *testing.T) {
 		{name: "uint64", v: uint64(1), want: true},
 		{name: "float32", v: float32(1), want: true},
 		{name: "float64", v: float64(1), want: true},
-		{name: "json_number", v: json.Number("1.5"), want: true},
-		{name: "invalid_json_number", v: json.Number("invalid"), want: false},
+		{name: "json_number", v: jsonv1.Number("1.5"), want: true},
+		{name: "invalid_json_number", v: jsonv1.Number("invalid"), want: false},
 		{name: "nan", v: math.NaN(), want: false},
 		{name: "infinity", v: math.Inf(1), want: false},
 		{name: "string", v: "1", want: false},
@@ -61,18 +61,18 @@ func TestCompareJSONNumbers(t *testing.T) {
 		{name: "large_signed_after_rounded_float", a: int64(9007199254740993), b: float64(9007199254740992), want: 1, wantOK: true},
 		{name: "exact_integer_float", a: uint64(9007199254740992), b: float64(9007199254740992), wantOK: true},
 		{name: "negative_zero", a: math.Copysign(0, -1), b: 0.0, wantOK: true},
-		{name: "decimal_exponent", a: json.Number("1e3"), b: int64(1000), wantOK: true},
-		{name: "equivalent_decimals", a: json.Number("0.1"), b: json.Number("0.10"), wantOK: true},
-		{name: "equivalent_large_exponents", a: json.Number("1e1000001"), b: json.Number("10e1000000"), wantOK: true},
-		{name: "equivalent_unbounded_exponents", a: json.Number("1e100000000000000000000"), b: json.Number("10e99999999999999999999"), wantOK: true},
-		{name: "ordered_large_exponents", a: json.Number("9e1000000"), b: json.Number("1e1000001"), want: -1, wantOK: true},
-		{name: "ordered_unbounded_exponents", a: json.Number("9e99999999999999999999"), b: json.Number("1e100000000000000000000"), want: -1, wantOK: true},
-		{name: "large_exponent_after_float", a: json.Number("1e1000001"), b: math.MaxFloat64, want: 1, wantOK: true},
-		{name: "small_exponent_before_float", a: json.Number("1e-1000001"), b: math.SmallestNonzeroFloat64, want: -1, wantOK: true},
-		{name: "negative_large_exponent", a: json.Number("-1e1000001"), b: json.Number("-9e1000000"), want: -1, wantOK: true},
-		{name: "unbounded_exponent_zero", a: json.Number("-0e100000000000000000000"), b: json.Number("0"), wantOK: true},
-		{name: "decimal_before_binary_float", a: json.Number("0.1"), b: float64(0.1), want: -1, wantOK: true},
-		{name: "invalid_decimal", a: json.Number("invalid"), b: 0, wantOK: false},
+		{name: "decimal_exponent", a: jsonv1.Number("1e3"), b: int64(1000), wantOK: true},
+		{name: "equivalent_decimals", a: jsonv1.Number("0.1"), b: jsonv1.Number("0.10"), wantOK: true},
+		{name: "equivalent_large_exponents", a: jsonv1.Number("1e1000001"), b: jsonv1.Number("10e1000000"), wantOK: true},
+		{name: "equivalent_unbounded_exponents", a: jsonv1.Number("1e100000000000000000000"), b: jsonv1.Number("10e99999999999999999999"), wantOK: true},
+		{name: "ordered_large_exponents", a: jsonv1.Number("9e1000000"), b: jsonv1.Number("1e1000001"), want: -1, wantOK: true},
+		{name: "ordered_unbounded_exponents", a: jsonv1.Number("9e99999999999999999999"), b: jsonv1.Number("1e100000000000000000000"), want: -1, wantOK: true},
+		{name: "large_exponent_after_float", a: jsonv1.Number("1e1000001"), b: math.MaxFloat64, want: 1, wantOK: true},
+		{name: "small_exponent_before_float", a: jsonv1.Number("1e-1000001"), b: math.SmallestNonzeroFloat64, want: -1, wantOK: true},
+		{name: "negative_large_exponent", a: jsonv1.Number("-1e1000001"), b: jsonv1.Number("-9e1000000"), want: -1, wantOK: true},
+		{name: "unbounded_exponent_zero", a: jsonv1.Number("-0e100000000000000000000"), b: jsonv1.Number("0"), wantOK: true},
+		{name: "decimal_before_binary_float", a: jsonv1.Number("0.1"), b: float64(0.1), want: -1, wantOK: true},
+		{name: "invalid_decimal", a: jsonv1.Number("invalid"), b: 0, wantOK: false},
 		{name: "nan", a: math.NaN(), b: 0, wantOK: false},
 		{name: "positive_infinity", a: math.Inf(1), b: 0, wantOK: false},
 		{name: "non_numeric", a: "1", b: 1, wantOK: false},
@@ -100,7 +100,7 @@ func TestCompareJSONNumbersEquivalentRepresentations(t *testing.T) {
 	values := []any{
 		int(1), int8(1), int16(1), int32(1), int64(1),
 		uint(1), uint8(1), uint16(1), uint32(1), uint64(1),
-		float32(1), float64(1), json.Number("1.0"),
+		float32(1), float64(1), jsonv1.Number("1.0"),
 	}
 	for _, left := range values {
 		for _, right := range values {

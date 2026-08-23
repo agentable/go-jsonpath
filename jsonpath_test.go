@@ -1,7 +1,7 @@
 package jsonpath
 
 import (
-	stdjson "encoding/json"
+	jsonv1 "encoding/json"
 	"math"
 	"slices"
 	"strings"
@@ -574,7 +574,7 @@ func TestPath_Select_FilterQueries(t *testing.T) {
 
 	input := map[string]any{
 		"expensive": 15,
-		"numbers":   []any{stdjson.Number("1e1000001")},
+		"numbers":   []any{jsonv1.Number("1e1000001")},
 		"items": []any{
 			map[string]any{"name": "paper", "price": 5, "tags": []any{"office"}, "code": "a", "meta": map[string]any{"target": "paper"}},
 			map[string]any{"name": "pencil", "price": 2, "tags": []any{"office", "writing"}, "code": "b"},
@@ -682,8 +682,8 @@ func TestPath_Select_JSONNumberComparison(t *testing.T) {
 	t.Parallel()
 
 	input := []any{
-		stdjson.Number("9007199254740992"),
-		stdjson.Number("9007199254740993"),
+		jsonv1.Number("9007199254740992"),
+		jsonv1.Number("9007199254740993"),
 	}
 	path := MustParse(`$[?@ == 9007199254740992]`)
 	want := []any{input[0]}
@@ -714,7 +714,7 @@ func TestPath_Select_ExactLargeUnsignedIntegerComparison(t *testing.T) {
 func TestPath_Select_ExactDecimalComparison(t *testing.T) {
 	t.Parallel()
 
-	decimal := stdjson.Number("0.1")
+	decimal := jsonv1.Number("0.1")
 	float := float64(0.1)
 	path := MustParse(`$[?@ == 0.1]`)
 	assert.Equal(t, `$[?@ == 0.1]`, path.String())
@@ -730,7 +730,7 @@ func TestPath_Select_ExactDecimalComparison(t *testing.T) {
 		t.Errorf("Select() positive binary float ordering mismatch (-want +got):\n%s", diff)
 	}
 
-	negativeDecimal := stdjson.Number("-0.1")
+	negativeDecimal := jsonv1.Number("-0.1")
 	negativeFloat := float64(-0.1)
 	if diff := cmp.Diff(
 		[]any{negativeFloat},
@@ -765,7 +765,7 @@ func TestPath_Select_InvalidJSONNumbersAreNotComparable(t *testing.T) {
 
 	input := []any{
 		math.Inf(1),
-		stdjson.Number("invalid"),
+		jsonv1.Number("invalid"),
 	}
 	got := MustParse(`$[?@ == @]`).Select(input)
 
@@ -776,7 +776,7 @@ func TestPath_Select_LargeExponentJSONNumberIsComparable(t *testing.T) {
 	t.Parallel()
 
 	path := MustParse(`$[?@ == @]`)
-	value := stdjson.Number("1e1000001")
+	value := jsonv1.Number("1e1000001")
 	want := []any{value}
 
 	if diff := cmp.Diff(want, []any(path.Select([]any{value}))); diff != "" {
@@ -1791,8 +1791,8 @@ func BenchmarkSelect_FilterQueries(b *testing.B) {
 	input := map[string]any{
 		"expensive": 15,
 		"numbers": []any{
-			stdjson.Number("1e1000"),
-			stdjson.Number("-1e-1000"),
+			jsonv1.Number("1e1000"),
+			jsonv1.Number("-1e-1000"),
 		},
 		"items": []any{
 			map[string]any{"name": "paper", "price": 5, "tags": []any{"office"}},
@@ -1828,8 +1828,8 @@ func BenchmarkSelect_FilterQueries(b *testing.B) {
 		b.Run(bm.name, func(b *testing.B) {
 			if bm.name == "large_decimal_exponent" {
 				require.Equal(b, NodeList{
-					stdjson.Number("1e1000"),
-					stdjson.Number("-1e-1000"),
+					jsonv1.Number("1e1000"),
+					jsonv1.Number("-1e-1000"),
 				}, bm.path.Select(input))
 			}
 			b.ReportAllocs()

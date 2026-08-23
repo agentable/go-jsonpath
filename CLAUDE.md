@@ -5,7 +5,7 @@ RFC 9535 JSONPath implementation for Go. The library prioritizes predictable sel
 ## Project Overview
 
 - Module: `github.com/agentable/go-jsonpath`
-- Go: see `go.mod`; current toolchain target is Go 1.26.5
+- Go: see `go.mod`; current toolchain target is Go 1.27
 - Primary user documentation: [README.md](README.md)
 - Specification source: RFC 9535, the embedded CTS in `compliance/testdata/cts.json`, and the durable contracts in `SPECS/`
 - `AGENTS.md` is a symlink to this file.
@@ -192,9 +192,10 @@ Rules:
 
 ## Dependencies
 
-Runtime dependency:
+Standard library:
 
 - `encoding/json/v2` and `encoding/json/jsontext`: JSON decoding for `QueryJSON*` helpers.
+- `encoding/json.Number`: retained only as the public exact-number value type; JSON semantics stay on v2.
 
 Development and tooling dependencies:
 
@@ -232,7 +233,7 @@ Use repository skills under `.agents/skills/` when the task clearly matches them
 | Skill | When to Use |
 |---|---|
 | `go-best-practices` | Idiomatic Go API, error, naming, and testing decisions |
-| `modernizing` | Go 1.20-1.26 language and standard-library updates |
+| `modernizing` | Go 1.20-1.27 language and standard-library updates |
 | `golangci-linting` | Lint configuration, running golangci-lint, and lint-driven cleanup |
 | `library-test-covering` | Strengthening tests for public behavior |
 | `taskfile-configuring` | Taskfile maintenance |
