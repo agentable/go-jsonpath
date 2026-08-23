@@ -2,7 +2,6 @@ package ast
 
 import (
 	"cmp"
-	jsonv1 "encoding/json"
 	"encoding/json/jsontext"
 	"math"
 	"math/big"
@@ -20,7 +19,7 @@ func isNumberType(v any) bool {
 	switch v.(type) {
 	case int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64,
-		float32, float64, jsonv1.Number:
+		float32, float64, jsontext.Value:
 		return true
 	default:
 		return false
@@ -119,7 +118,7 @@ func parseJSONNumber(v any) (numberValue, bool) {
 			return numberValue{}, false
 		}
 		return numberValue{kind: numberFloat, float: n}, true
-	case jsonv1.Number:
+	case jsontext.Value:
 		decimal, ok := parseDecimalNumber(string(n))
 		if !ok {
 			return numberValue{}, false

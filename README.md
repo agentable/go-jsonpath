@@ -71,7 +71,7 @@ func main() {
 
 See [pkg.go.dev/github.com/agentable/go-jsonpath](https://pkg.go.dev/github.com/agentable/go-jsonpath) for complete package documentation.
 
-`Valid(expr)` checks whether `Parse(expr)` succeeds with the default built-in functions; use `NewParser` and `Parser.Parse` for expressions that rely on custom functions. `QueryJSON*` helpers preserve JSON numbers as `encoding/json.Number`; invalid `Path` values fail with `ErrInvalidPath` before reading or decoding. Callers that need another number representation, decoder policy, or streaming behavior should decode outside this package and then call `Path.Select` or `Path.SelectLocated`.
+`Valid(expr)` checks whether `Parse(expr)` succeeds with the default built-in functions; use `NewParser` and `Parser.Parse` for expressions that rely on custom functions. `QueryJSON*` helpers preserve JSON number lexemes as `jsontext.Value`; invalid `Path` values fail with `ErrInvalidPath` before reading or decoding. Callers that need another number representation, decoder policy, or streaming behavior should decode outside this package and then call `Path.Select` or `Path.SelectLocated`.
 
 The zero `Parser` value uses the same built-in functions as `Parse` and a
 no-option `NewParser`. Use `NewParser` only when configuring extension
@@ -83,10 +83,10 @@ inside filter expressions; using it as the root returns a positioned
 `ErrPathParse` diagnostic.
 
 Filter comparison preserves the exact magnitude of Go integer types and the
-exact decimal value of `encoding/json.Number`. Finite `float32` and `float64`
+exact decimal value of `jsontext.Value` numbers. Finite `float32` and `float64`
 values supplied to `Select` compare by their exact binary value. Invalid
-`json.Number` text, NaN, and infinities are outside the decoded-JSON numeric
-domain and are not comparable.
+`jsontext.Value` number text, NaN, and infinities are outside the decoded-JSON
+numeric domain and are not comparable.
 
 ## Core Concepts
 

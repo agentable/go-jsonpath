@@ -1,14 +1,13 @@
 package jsonpath
 
 import (
-	jsonv1 "encoding/json"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"io"
 )
 
-// QueryJSON unmarshals src, preserving numbers as [encoding/json.Number], and evaluates path.
+// QueryJSON unmarshals src, preserving numbers as [jsontext.Value], and evaluates path.
 func QueryJSON(src []byte, path Path) (NodeList, error) {
 	if path.query == nil {
 		return nil, ErrInvalidPath
@@ -81,7 +80,7 @@ var preserveJSONNumbers = json.WithUnmarshalers(json.UnmarshalFromFunc(
 		if err != nil {
 			return err
 		}
-		*dst = jsonv1.Number(src)
+		*dst = src.Clone()
 		return nil
 	},
 ))

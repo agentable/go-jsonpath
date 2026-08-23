@@ -1,7 +1,7 @@
 package jsonpath
 
 import (
-	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
 	"io"
 	"strings"
 	"testing"
@@ -63,13 +63,13 @@ func TestQueryJSON(t *testing.T) {
 			name: "simple name selector",
 			json: `{"a": 1, "b": 2}`,
 			path: "$.a",
-			want: []any{jsonv1.Number("1")},
+			want: []any{jsontext.Value("1")},
 		},
 		{
 			name: "array index selector",
 			json: `[10, 20, 30]`,
 			path: "$[1]",
-			want: []any{jsonv1.Number("20")},
+			want: []any{jsontext.Value("20")},
 		},
 		{
 			name: "nested path",
@@ -81,7 +81,7 @@ func TestQueryJSON(t *testing.T) {
 			name: "wildcard selector",
 			json: `{"a": 1, "b": 2, "c": 3}`,
 			path: "$[*]",
-			want: []any{jsonv1.Number("1"), jsonv1.Number("2"), jsonv1.Number("3")},
+			want: []any{jsontext.Value("1"), jsontext.Value("2"), jsontext.Value("3")},
 		},
 		{
 			name:    "invalid json",
@@ -130,7 +130,7 @@ func TestQueryJSONLocated(t *testing.T) {
 			json: `{"a": 1, "b": 2}`,
 			path: "$.a",
 			want: LocatedNodeList{
-				{Value: jsonv1.Number("1"), Path: mustNormalizedPath(NameElement("a"))},
+				{Value: jsontext.Value("1"), Path: mustNormalizedPath(NameElement("a"))},
 			},
 		},
 		{
@@ -138,7 +138,7 @@ func TestQueryJSONLocated(t *testing.T) {
 			json: `[10, 20, 30]`,
 			path: "$[1]",
 			want: LocatedNodeList{
-				{Value: jsonv1.Number("20"), Path: mustNormalizedPath(IndexElement(1))},
+				{Value: jsontext.Value("20"), Path: mustNormalizedPath(IndexElement(1))},
 			},
 		},
 		{
@@ -162,7 +162,7 @@ func TestQueryJSONLocated(t *testing.T) {
 			path: "$.store.book[*].price",
 			want: LocatedNodeList{
 				{
-					Value: jsonv1.Number("8.95"),
+					Value: jsontext.Value("8.95"),
 					Path: mustNormalizedPath(
 						NameElement("store"),
 						NameElement("book"),
@@ -170,7 +170,7 @@ func TestQueryJSONLocated(t *testing.T) {
 						NameElement("price")),
 				},
 				{
-					Value: jsonv1.Number("12.99"),
+					Value: jsontext.Value("12.99"),
 					Path: mustNormalizedPath(
 						NameElement("store"),
 						NameElement("book"),
@@ -218,7 +218,7 @@ func TestQueryJSON_PreservesNumberLexemes(t *testing.T) {
 	got, err := QueryJSON([]byte(`[0.1, 0.10, 0.2]`), path)
 	require.NoError(t, err)
 
-	want := NodeList{jsonv1.Number("0.1"), jsonv1.Number("0.10")}
+	want := NodeList{jsontext.Value("0.1"), jsontext.Value("0.10")}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("QueryJSON() mismatch (-want +got):\n%s", diff)
 	}
@@ -231,11 +231,11 @@ func TestQueryJSON_NumberBoundaries(t *testing.T) {
 	all, err := QueryJSON(src, MustParse(`$[*]`))
 	require.NoError(t, err)
 	wantAll := NodeList{
-		jsonv1.Number("1"),
-		jsonv1.Number("1.10"),
-		jsonv1.Number("1e-2"),
-		jsonv1.Number("9007199254740992"),
-		jsonv1.Number("9007199254740993"),
+		jsontext.Value("1"),
+		jsontext.Value("1.10"),
+		jsontext.Value("1e-2"),
+		jsontext.Value("9007199254740992"),
+		jsontext.Value("9007199254740993"),
 	}
 	if diff := cmp.Diff(wantAll, all); diff != "" {
 		t.Errorf("QueryJSON() lexemes mismatch (-want +got):\n%s", diff)
@@ -245,7 +245,7 @@ func TestQueryJSON_NumberBoundaries(t *testing.T) {
 	got, err := QueryJSONLocated(src, path)
 	require.NoError(t, err)
 	want := LocatedNodeList{{
-		Value: jsonv1.Number("9007199254740993"),
+		Value: jsontext.Value("9007199254740993"),
 		Path:  mustNormalizedPath(IndexElement(4)),
 	}}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -267,13 +267,13 @@ func TestQueryJSONRead(t *testing.T) {
 			name: "simple name selector",
 			json: `{"a": 1, "b": 2}`,
 			path: "$.a",
-			want: []any{jsonv1.Number("1")},
+			want: []any{jsontext.Value("1")},
 		},
 		{
 			name: "array index selector",
 			json: `[10, 20, 30]`,
 			path: "$[1]",
-			want: []any{jsonv1.Number("20")},
+			want: []any{jsontext.Value("20")},
 		},
 		{
 			name:    "invalid json",
@@ -316,7 +316,7 @@ func TestQueryJSONReadLocated(t *testing.T) {
 			json: `{"a": 1, "b": 2}`,
 			path: "$.a",
 			want: LocatedNodeList{
-				{Value: jsonv1.Number("1"), Path: mustNormalizedPath(NameElement("a"))},
+				{Value: jsontext.Value("1"), Path: mustNormalizedPath(NameElement("a"))},
 			},
 		},
 		{
@@ -384,7 +384,7 @@ func TestQueryJSON_ComplexDocument(t *testing.T) {
 		path := MustParse("$.store.book[*].price")
 		got, err := QueryJSON([]byte(jsonDoc), path)
 		require.NoError(t, err)
-		if diff := cmp.Diff([]any{jsonv1.Number("8.95"), jsonv1.Number("12.99"), jsonv1.Number("8.99")}, []any(got)); diff != "" {
+		if diff := cmp.Diff([]any{jsontext.Value("8.95"), jsontext.Value("12.99"), jsontext.Value("8.99")}, []any(got)); diff != "" {
 			t.Errorf("QueryJSON() mismatch (-want +got):\n%s", diff)
 		}
 	})
@@ -409,7 +409,7 @@ func TestQueryJSON_ComplexDocument(t *testing.T) {
 		require.Len(t, got, 1)
 		book := got[0].(map[string]any)
 		assert.Equal(t, "Sayings of the Century", book["title"])
-		assert.Equal(t, jsonv1.Number("8.95"), book["price"])
+		assert.Equal(t, jsontext.Value("8.95"), book["price"])
 	})
 }
 
@@ -515,6 +515,33 @@ func TestQueryJSONLocated_ErrUnmarshal(t *testing.T) {
 			_, err := QueryJSONLocated([]byte(tt.json), path)
 			require.Error(t, err)
 			assert.ErrorIs(t, err, ErrUnmarshal)
+		})
+	}
+}
+
+func TestQueryJSON_RejectsAmbiguousInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		src  []byte
+	}{
+		{
+			name: "duplicate object member",
+			src:  []byte(`{"a": 1, "a": 2}`),
+		},
+		{
+			name: "invalid utf8",
+			src:  []byte{'{', '"', 'a', '"', ':', '"', 0xff, '"', '}'},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := QueryJSON(tt.src, MustParse("$.a"))
+			require.ErrorIs(t, err, ErrUnmarshal)
 		})
 	}
 }

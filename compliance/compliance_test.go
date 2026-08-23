@@ -2,7 +2,6 @@ package compliance
 
 import (
 	_ "embed"
-	jsonv1 "encoding/json"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -127,7 +126,7 @@ func TestCompliance(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			*value = jsonv1.Number(raw)
+			*value = raw.Clone()
 			return nil
 		},
 	))

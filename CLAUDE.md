@@ -140,7 +140,7 @@ For parser, selector, located-result, normalized-path, or built-in-function perf
 - Reject invalid UTF-8 normalized names at public construction boundaries; do not normalize invalid bytes to U+FFFD.
 - Keep top-level `$` grammar and positioned errors in `internal/parser`; accept `@` only through private filter-query parsing.
 - Keep `PathQuery` as the only query representation; use `IsSingular` instead of adding a singular-query mirror.
-- Preserve JSON number lexemes in `QueryJSON*` and exact numeric comparison across integer, `json.Number`, and finite float inputs; never normalize the numeric domain through `float64`.
+- Preserve JSON number lexemes in `QueryJSON*` and exact numeric comparison across integer, `jsontext.Value`, and finite float inputs; never normalize the numeric domain through `float64`.
 - Keep function extension runtime values typed: `Value`, `Logical`, `Nodes`; use `NoValue` for absence, not JSON null.
 - Keep the non-nil zero `Parser` equivalent to a no-option `NewParser`; both use the same immutable built-in registry and support concurrent reuse.
 - Validate raw I-Regexp syntax before RE2 mapping and cache insertion; include match/search mode in cache identity, and preserve CTS anchor semantics for unescaped `^`/`$`.
@@ -195,7 +195,7 @@ Rules:
 Standard library:
 
 - `encoding/json/v2` and `encoding/json/jsontext`: JSON decoding for `QueryJSON*` helpers.
-- `encoding/json.Number`: retained only as the public exact-number value type; JSON semantics stay on v2.
+- `jsontext.Value`: public exact-number lexemes; JSON semantics stay on v2.
 
 Development and tooling dependencies:
 

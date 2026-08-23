@@ -109,10 +109,10 @@ execution, and measured performance.
 - Nothing does not equal JSON null.
 - JSON null equals document nil.
 - Numeric JSON values compare with exact numeric coercion. Signed and unsigned
-  integers preserve magnitude, `encoding/json.Number` preserves its decimal
-  value, and finite floats preserve their binary value. Invalid number text,
-  NaN, and infinities are not comparable JSON numbers.
-- `QueryJSON*` decodes JSON text numbers as `encoding/json.Number`; caller-decoded
+  integers preserve magnitude, `jsontext.Value` preserves its decimal lexeme,
+  and finite floats preserve their binary value. Invalid number text, NaN, and
+  infinities are not comparable JSON numbers.
+- `QueryJSON*` decodes JSON text numbers as `jsontext.Value`; caller-decoded
   input passed to `Select` or `SelectLocated` retains its supplied Go numeric
   representation.
 - Strings compare lexicographically.

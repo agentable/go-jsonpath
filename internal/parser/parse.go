@@ -3,7 +3,7 @@
 package parser
 
 import (
-	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"slices"
@@ -681,7 +681,7 @@ func (p *Parser) parseLiteralValue() (any, error) {
 		if err != nil {
 			return nil, p.errorAt(tok.Start, "invalid number", errors.Join(ErrParsePosition, err))
 		}
-		return jsonv1.Number(s), nil
+		return jsontext.Value(s), nil
 	}
 	if p.match(lexer.True) {
 		return true, nil

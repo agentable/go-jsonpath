@@ -84,9 +84,9 @@ and path step representation are owned by implementation packages and by
   before consuming reader input.
 - `QueryJSON*` helpers are convenience decoders over JSON bytes or readers plus
   `Path.Select` / `Path.SelectLocated`. They expose JSON numbers as
-  `encoding/json.Number`. Callers needing another number representation, custom
-  decoder policy, or streaming behavior decode outside this package and pass
-  the decoded value to `Path` methods.
+  `jsontext.Value` lexemes. Callers needing another number representation,
+  custom decoder policy, or streaming behavior decode outside this package and
+  pass the decoded value to `Path` methods.
 
 **Decision**
 
