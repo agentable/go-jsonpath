@@ -5,7 +5,7 @@ RFC 9535 JSONPath implementation for Go. The library prioritizes predictable sel
 ## Project Overview
 
 - Module: `github.com/agentable/go-jsonpath`
-- Go: see `go.mod`; current toolchain target is Go 1.27
+- Go: see `go.mod`; current toolchain target is Go 1.27.0
 - Primary user documentation: [README.md](README.md)
 - Specification source: RFC 9535, the embedded CTS in `compliance/testdata/cts.json`, and the durable contracts in `SPECS/`
 - `AGENTS.md` is a symlink to this file.

@@ -198,19 +198,13 @@ tasks:
     cmds:
       - '"{{.GOLANGCI_LINT_BINARY}}" version'
       - echo "Running golangci-lint..."
-      - '"{{.GOLANGCI_LINT_BINARY}}" run --timeout=30m --concurrency=1 --path-prefix=.'
+      - '"{{.GOLANGCI_LINT_BINARY}}" run --timeout=30m --concurrency=1 --allow-serial-runners --path-prefix=.'
 
   tidy-lint:
     desc: Check if go.mod and go.sum are tidy
     cmds:
       - echo "Checking go.mod and go.sum are tidy..."
-      - |
-        tmp="$(mktemp -d)"
-        trap 'rm -rf "$tmp"' EXIT
-        cp go.mod go.sum "$tmp"/
-        go mod tidy
-        diff -u "$tmp/go.mod" go.mod
-        diff -u "$tmp/go.sum" go.sum
+      - go mod tidy -diff
 
   yamllint:
     desc: Run yamllint
