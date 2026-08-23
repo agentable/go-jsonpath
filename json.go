@@ -2,11 +2,10 @@ package jsonpath
 
 import (
 	stdjson "encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"io"
-
-	"github.com/go-json-experiment/json"
-	"github.com/go-json-experiment/json/jsontext"
 )
 
 // QueryJSON unmarshals src, preserving numbers as [encoding/json.Number], and evaluates path.

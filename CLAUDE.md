@@ -194,7 +194,7 @@ Rules:
 
 Runtime dependency:
 
-- `github.com/go-json-experiment/json`: JSON decoding for `QueryJSON*` helpers.
+- `encoding/json/v2` and `encoding/json/jsontext`: JSON decoding for `QueryJSON*` helpers.
 
 Development and tooling dependencies:
 

@@ -3,12 +3,11 @@ package ast
 import (
 	"cmp"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"math"
 	"math/big"
 	"strconv"
 	"strings"
-
-	"github.com/go-json-experiment/json/jsontext"
 )
 
 // isNumeric returns true if v is a numeric type.
