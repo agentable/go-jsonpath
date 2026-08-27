@@ -6,10 +6,10 @@ import (
 )
 
 type iRegexpChecker struct {
-	pattern     string
-	offset      int
-	groups      []int
-	canQuantify bool
+	pattern          string
+	offset           int
+	openGroupOffsets []int
+	canQuantify      bool
 }
 
 func checkIRegexp(pattern string) error {
@@ -26,14 +26,14 @@ func (c *iRegexpChecker) check() error {
 		r, size := utf8.DecodeRuneInString(c.pattern[c.offset:])
 		switch {
 		case r == '(':
-			c.groups = append(c.groups, start)
+			c.openGroupOffsets = append(c.openGroupOffsets, start)
 			c.offset += size
 			c.canQuantify = false
 		case r == ')':
-			if len(c.groups) == 0 {
+			if len(c.openGroupOffsets) == 0 {
 				return c.errorf(start, "unbalanced ')'")
 			}
-			c.groups = c.groups[:len(c.groups)-1]
+			c.openGroupOffsets = c.openGroupOffsets[:len(c.openGroupOffsets)-1]
 			c.offset += size
 			c.canQuantify = true
 		case r == '|':
@@ -64,8 +64,8 @@ func (c *iRegexpChecker) check() error {
 		}
 	}
 
-	if len(c.groups) != 0 {
-		return c.errorf(c.groups[len(c.groups)-1], "unclosed group")
+	if len(c.openGroupOffsets) != 0 {
+		return c.errorf(c.openGroupOffsets[len(c.openGroupOffsets)-1], "unclosed group")
 	}
 	return nil
 }
@@ -201,14 +201,14 @@ func (c *iRegexpChecker) checkCharacterClassElement() error {
 		return err
 	}
 
-	if c.offset < len(c.pattern) && c.pattern[c.offset] == '-' {
-		if c.offset+1 < len(c.pattern) && c.pattern[c.offset+1] == ']' {
-			return nil
-		}
-		c.offset++
-		return c.checkCharacterClassChar()
+	if c.offset >= len(c.pattern) || c.pattern[c.offset] != '-' {
+		return nil
 	}
-	return nil
+	if c.offset+1 < len(c.pattern) && c.pattern[c.offset+1] == ']' {
+		return nil
+	}
+	c.offset++
+	return c.checkCharacterClassChar()
 }
 
 func (c *iRegexpChecker) checkCharacterClassChar() error {
