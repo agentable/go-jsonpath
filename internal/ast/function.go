@@ -104,74 +104,151 @@ type Function interface {
 	Call(args []FunctionValue) FunctionValue
 }
 
+type functionArgumentSource uint8
+
+const (
+	functionArgumentLiteral functionArgumentSource = iota
+	functionArgumentQuery
+	functionArgumentLogical
+	functionArgumentFunction
+)
+
+type functionArgument struct {
+	kind     FuncType
+	source   functionArgumentSource
+	literal  any
+	query    *PathQuery
+	logical  LogicalOr
+	function *FuncExpr
+}
+
+func newFunctionArgument(kind FuncType, arg any) (functionArgument, error) {
+	compiled := functionArgument{kind: kind}
+	switch arg := arg.(type) {
+	case *PathQuery:
+		if kind != Nodes && (kind != Value || !arg.IsSingular()) {
+			return functionArgument{}, ErrArgType
+		}
+		compiled.source = functionArgumentQuery
+		compiled.query = arg
+	case *FuncExpr:
+		if arg.ResultType() != kind {
+			return functionArgument{}, ErrArgType
+		}
+		compiled.source = functionArgumentFunction
+		compiled.function = arg
+	case LogicalOr:
+		if kind != Logical {
+			return functionArgument{}, ErrArgType
+		}
+		compiled.source = functionArgumentLogical
+		compiled.logical = arg
+	case LogicalAnd:
+		if kind != Logical {
+			return functionArgument{}, ErrArgType
+		}
+		compiled.source = functionArgumentLogical
+		compiled.logical = LogicalOr{arg}
+	case BasicExpr:
+		if kind != Logical {
+			return functionArgument{}, ErrArgType
+		}
+		compiled.source = functionArgumentLogical
+		compiled.logical = LogicalOr{LogicalAnd{arg}}
+	case CompValue:
+		return functionArgument{}, ErrArgType
+	default:
+		if kind != Value {
+			return functionArgument{}, ErrArgType
+		}
+		compiled.source = functionArgumentLiteral
+		compiled.literal = arg
+	}
+	return compiled, nil
+}
+
+func (arg functionArgument) evaluate(current, root any) FunctionValue {
+	switch arg.source {
+	case functionArgumentLiteral:
+		return typedValueFromAny(arg.literal)
+	case functionArgumentQuery:
+		nodes := arg.query.Select(current, root)
+		if arg.kind == Nodes {
+			return TypedNodes(nodes)
+		}
+		if len(nodes) == 1 {
+			return NewValue(nodes[0])
+		}
+		return NoValue()
+	case functionArgumentLogical:
+		return TypedLogical(arg.logical.Eval(current, root))
+	case functionArgumentFunction:
+		return arg.function.Call(current, root)
+	default:
+		return NoValue()
+	}
+}
+
+func (arg functionArgument) writeTo(buf *strings.Builder) {
+	switch arg.source {
+	case functionArgumentLiteral:
+		writeLiteral(buf, arg.literal)
+	case functionArgumentQuery:
+		arg.query.writeTo(buf)
+	case functionArgumentLogical:
+		arg.logical.writeTo(buf)
+	case functionArgumentFunction:
+		arg.function.writeTo(buf)
+	}
+}
+
 // FuncExpr represents a function call in a filter expression per RFC 9535 §2.4.
 type FuncExpr struct {
-	name string   // function name
-	fn   Function // resolved function definition
-	args []any    // argument expressions
+	name       string             // function name
+	resultType FuncType           // compiled function result type
+	fn         Function           // resolved function definition
+	args       []functionArgument // compiled argument expressions
 }
 
 // NewFuncExpr creates a [FuncExpr] for the given function and arguments.
-func NewFuncExpr(fn Function, args ...any) *FuncExpr {
-	return &FuncExpr{name: fn.Name(), fn: fn, args: args}
+func NewFuncExpr(fn Function, args ...any) (*FuncExpr, error) {
+	if len(args) != fn.ParameterCount() {
+		return nil, fmt.Errorf("expected %d, got %d: %w", fn.ParameterCount(), len(args), ErrArgCount)
+	}
+
+	compiled := make([]functionArgument, len(args))
+	for i, arg := range args {
+		kind := fn.ParameterType(i)
+		compiledArg, err := newFunctionArgument(kind, arg)
+		if err != nil {
+			return nil, fmt.Errorf("argument %d cannot convert to %s: %w", i+1, kind, err)
+		}
+		compiled[i] = compiledArg
+	}
+	return &FuncExpr{name: fn.Name(), resultType: fn.ResultType(), fn: fn, args: compiled}, nil
 }
 
 // Name returns the function name.
 func (fe *FuncExpr) Name() string { return fe.name }
 
-// Func returns the resolved [Function].
-func (fe *FuncExpr) Func() Function { return fe.fn }
-
-// Args returns the argument expressions.
-func (fe *FuncExpr) Args() []any { return fe.args }
-
-// ResultType returns the return type of the underlying function.
-func (fe *FuncExpr) ResultType() FuncType { return fe.fn.ResultType() }
+// ResultType returns the result type captured when the expression was compiled.
+func (fe *FuncExpr) ResultType() FuncType { return fe.resultType }
 
 // Call evaluates the function with the given current and root nodes.
 // It evaluates argument expressions and passes the results to the underlying function.
 func (fe *FuncExpr) Call(current, root any) FunctionValue {
 	evalArgs := make([]FunctionValue, len(fe.args))
-	for i, arg := range fe.args {
-		evalArgs[i] = fe.evalArg(i, arg, current, root)
+	for i := range fe.args {
+		evalArgs[i] = fe.args[i].evaluate(current, root)
 	}
 	return fe.fn.Call(evalArgs)
-}
-
-func (fe *FuncExpr) evalArg(index int, arg, current, root any) FunctionValue {
-	switch a := arg.(type) {
-	case *PathQuery:
-		return fe.evalPathQueryArg(index, a, current, root)
-	case *FuncExpr:
-		return a.Call(current, root)
-	case LogicalOr:
-		return TypedLogical(a.Eval(current, root))
-	case CompValue:
-		return typedValueFromRuntimeValue(a.Value(current, root))
-	default:
-		return typedValueFromAny(arg)
-	}
-}
-
-func (fe *FuncExpr) evalPathQueryArg(index int, query *PathQuery, current, root any) FunctionValue {
-	nodes := query.Select(current, root)
-	if index < fe.fn.ParameterCount() && fe.fn.ParameterType(index) == Nodes {
-		return TypedNodes(nodes)
-	}
-	if !query.IsSingular() {
-		return TypedNodes(nodes)
-	}
-	if len(nodes) == 1 {
-		return NewValue(nodes[0])
-	}
-	return NoValue()
 }
 
 // Eval implements BasicExpr for logical functions.
 // Returns false if the function is not a logical function.
 func (fe *FuncExpr) Eval(current, root any) bool {
 	result := runtimeValueFromFunctionValue(fe.Call(current, root))
-	switch fe.fn.ResultType() {
+	switch fe.resultType {
 	case Logical:
 		return result.kind == runtimeLogical && result.logical
 	case Nodes:
@@ -189,28 +266,9 @@ func (fe *FuncExpr) writeTo(buf *strings.Builder) {
 		if i > 0 {
 			buf.WriteString(", ")
 		}
-		writeFunctionArg(buf, arg)
+		arg.writeTo(buf)
 	}
 	buf.WriteByte(')')
-}
-
-func writeFunctionArg(buf *strings.Builder, arg any) {
-	switch a := arg.(type) {
-	case *PathQuery:
-		a.writeTo(buf)
-	case *FuncExpr:
-		a.writeTo(buf)
-	case CompValue:
-		writeCompValue(buf, a)
-	case LogicalOr:
-		a.writeTo(buf)
-	case LogicalAnd:
-		a.writeTo(buf)
-	case BasicExpr:
-		writeBasicExpr(buf, a)
-	default:
-		writeLiteral(buf, a)
-	}
 }
 
 // String returns the canonical string representation of fe.

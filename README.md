@@ -88,6 +88,27 @@ values supplied to `Select` compare by their exact binary value. Invalid
 `jsontext.Value` number text, NaN, and infinities are outside the decoded-JSON
 numeric domain and are not comparable.
 
+Filter numeric literals are a separate source from document values. Every
+valid numeric literal in a query is compiled as a `jsontext.Value` containing
+its original JSON number lexeme. This applies to ordinary comparisons and to
+`FuncValue` arguments, including integers, fractions, exponents, and `-0`.
+`Path.String()` preserves that lexeme, so parsing the string again does not
+change the literal. By contrast, `QueryJSON*` produces `jsontext.Value` from
+the input document, while values passed directly to `Select` retain the Go
+numeric types chosen by the caller.
+
+```go
+path := jsonpath.MustParse(`$[?@ == 1e1000001]`)
+got := path.Select([]any{jsontext.Value("1e1000001")})
+```
+
+Migration from v0.1.11 and earlier: integer filter literals previously reached
+extension callbacks as `int64`, and otherwise valid literals could fail to
+parse when they exceeded `int64` or `float64` conversion range. Callbacks now
+observe `jsontext.Value` for every numeric filter literal. `Path.String()` also
+preserves integer lexemes, including `-0`, instead of formatting their parsed
+`int64` value. No compatibility type split is retained.
+
 ## Core Concepts
 
 ### Compiled Paths
@@ -171,6 +192,9 @@ callbacks receive only typed runtime values. Return `NoValue`, `Logical(false)`,
 or an empty `Nodes` value for runtime absence.
 `FuncLogical` parameters accept the same comparisons, test expressions,
 negation, conjunction, disjunction, and parentheses used by filters.
+Numeric literals passed to `FuncValue` arrive as `jsontext.Value`, preserving
+the query lexeme exactly; document values and caller-supplied Go values keep
+their own representations.
 
 ```go
 hasPrefix := jsonpath.NewLogicalFunction(

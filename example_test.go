@@ -1,6 +1,7 @@
 package jsonpath_test
 
 import (
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"log"
@@ -115,4 +116,31 @@ func ExampleWithFunctions() {
 
 	// Output:
 	// book-1
+}
+
+func Example_exactNumericLiterals() {
+	isExact := jsonpath.NewLogicalFunction(
+		"is_exact",
+		[]jsonpath.FuncType{jsonpath.FuncValue},
+		func(args []jsonpath.FunctionValue) jsonpath.Logical {
+			value := args[0].(jsonpath.Value)
+			number, ok := value.Any().(jsontext.Value)
+			return jsonpath.Logical(ok && string(number) == "1e1000001")
+		},
+	)
+	parser, err := jsonpath.NewParser(jsonpath.WithFunctions(isExact))
+	if err != nil {
+		log.Fatal(err)
+	}
+	path, err := parser.Parse(`$[?is_exact(1e1000001)]`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(path.String())
+	fmt.Println(len(path.Select([]any{"kept"})))
+
+	// Output:
+	// $[?is_exact(1e1000001)]
+	// 1
 }

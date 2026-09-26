@@ -27,7 +27,7 @@ the completed implementation pass.
 |---|---|---|
 | Public API | `jsonpath.go`, `parse.go`, `json.go`, `normalized.go`, `result.go`, `errors.go`, `options.go` | Exposes compiled paths, JSON helpers, located results, normalized paths, sentinels, and typed function extensions. |
 | Parser pipeline | `internal/lexer`, `internal/parser` | Converts top-level `$` paths and private `$`/`@` filter queries into one AST model while preserving structured parse diagnostics. |
-| AST and selection semantics | `internal/ast` | Owns the single `PathQuery` representation, selector rules, filter evaluation, child traversal, slice/index resolution, and function runtime conversion. |
+| AST and selection semantics | `internal/ast` | Owns the single `PathQuery` representation, selector rules, filter evaluation, child traversal, slice/index resolution, and compiled function-argument conversion. |
 | Built-in functions | `internal/functions` | Owns RFC 9535 built-ins, RFC 9485 acceptance, and RE2 mapping used by parser registries. |
 | Compliance harness | `compliance/` | Runs the embedded CTS and protects RFC compatibility. |
 
@@ -52,6 +52,8 @@ These details are intentionally private:
 - Selector execution loops and descendant traversal stacks.
 - Private `runtimeValue` representation for Nothing, JSON values, logical
   results, and node lists.
+- Private tagged function arguments that bind `Value`, `Nodes`, or `Logical`
+  evaluation during AST construction.
 - Concrete `pathStep` storage inside `NormalizedPath`.
 - Built-in regex cache and I-Regexp implementation details.
 - Benchmark and PGO mechanics.
@@ -71,6 +73,10 @@ Public APIs must not expose these names, setup phases, or storage records.
 - **Pure selection**: `Select` and `SelectLocated` do not return runtime errors.
   Parse, validation, registration, and unmarshal errors stay at their trust
   boundaries.
+- **Compile function arguments once**: Function signatures guide parser
+  disambiguation and AST construction. A valid `FuncExpr` stores the selected
+  argument kind; selection does not read the signature again or recover an
+  argument type rejected at parse time.
 - **Small public surface**: Common users compile and select. Extension authors
   get typed function values. No ordinary caller learns AST, planner, cache, or
   runtime algebra concepts.
@@ -126,6 +132,20 @@ Public APIs must not expose these names, setup phases, or storage records.
 - **Rejected**: Public prechecks, parser modes, and duplicate snippet builders.
 - **Basis**: Public and internal error tests prove the same parser-originated
   `ErrPathParse` diagnostics while filter queries retain `$`/`@` behavior.
+
+### Function Arguments Cross One Trust Boundary
+
+- **Decision**: Compile each validated function argument into a private tagged
+  `Value`, `Nodes`, or `Logical` strategy in `internal/ast`.
+- **Why**: The fixed signature is authoritative at construction time. Reading
+  it again during every selection would leave parser validation and runtime
+  conversion as rival owners.
+- **Rejected**: Raw `[]any` storage, runtime signature reads, unknown-argument
+  fallbacks, and a public argument AST or adapter layer.
+- **Basis**: Public extension characterization covers literal, singular and
+  non-singular query, logical, nested-function, error, and located/plain
+  behavior; AST tests cover total evaluation and canonical formatting of the
+  compiled kinds.
 
 ## Forbidden
 

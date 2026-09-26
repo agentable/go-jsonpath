@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	internallexer "github.com/agentable/go-jsonpath/internal/lexer"
 	internalparser "github.com/agentable/go-jsonpath/internal/parser"
 )
 
@@ -515,7 +516,7 @@ func TestParse_RejectsInvalidUTF8(t *testing.T) {
 	}
 }
 
-func TestParse_NumericConversionErrorsArePositioned(t *testing.T) {
+func TestParse_IndexAndSliceConversionErrorsArePositioned(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -542,12 +543,6 @@ func TestParse_NumericConversionErrorsArePositioned(t *testing.T) {
 			wantOffset: 6,
 			wantReason: "invalid integer",
 		},
-		{
-			name:       "filter literal number overflow",
-			expr:       "$[?1e999 == 1]",
-			wantOffset: 3,
-			wantReason: "invalid number",
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -562,6 +557,36 @@ func TestParse_NumericConversionErrorsArePositioned(t *testing.T) {
 			assert.NotEmpty(t, parseErr.Snippet)
 			var numErr *strconv.NumError
 			require.True(t, errors.As(parseErr.Cause, &numErr))
+		})
+	}
+}
+
+func TestParse_MalformedFilterNumbersArePositioned(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		expr       string
+		wantReason string
+	}{
+		{name: "leading zero", expr: "$[?01 == 1]", wantReason: "leading zeros not allowed"},
+		{name: "missing fraction", expr: "$[?1. == 1]", wantReason: "expected digit after '.'"},
+		{name: "missing exponent", expr: "$[?1e == 1]", wantReason: "expected digit in exponent"},
+		{name: "missing integer", expr: "$[?- == 1]", wantReason: "expected digit after '-'"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Parse(tc.expr)
+			require.ErrorIs(t, err, ErrPathParse)
+
+			var parseErr *ParseError
+			require.ErrorAs(t, err, &parseErr)
+			assert.Equal(t, 3, parseErr.Offset)
+			assert.Equal(t, tc.wantReason, parseErr.Reason)
+			assert.NotEmpty(t, parseErr.Snippet)
+			assert.ErrorIs(t, parseErr.Cause, internalparser.ErrParsePosition)
+			assert.ErrorIs(t, parseErr.Cause, internallexer.ErrSyntax)
 		})
 	}
 }

@@ -1,7 +1,9 @@
 package jsonpath
 
 import (
+	"encoding/json/jsontext"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 
@@ -334,6 +336,138 @@ func TestWithFunctions_ConvertsQueryArgumentsFromSignature(t *testing.T) {
 		if diff := cmp.Diff(want, got); diff != "" {
 			t.Errorf("%s Select() mismatch (-want +got):\n%s", expr, diff)
 		}
+	}
+}
+
+func TestWithFunctions_NumberLiteralsPreserveExactLexemes(t *testing.T) {
+	t.Parallel()
+
+	for _, literal := range []string{
+		"1",
+		"9223372036854775808",
+		"1e1000001",
+		"-1e-1000001",
+		"0.123456789012345678901234567890123456789",
+		"-0",
+	} {
+		t.Run(literal, func(t *testing.T) {
+			t.Parallel()
+
+			var gotLiteral string
+			isExact := NewLogicalFunction("is_exact", []FuncType{FuncValue}, func(args []FunctionValue) Logical {
+				value, ok := args[0].(Value)
+				if !ok || value.IsNothing() {
+					return false
+				}
+				number, ok := value.Any().(jsontext.Value)
+				gotLiteral = string(number)
+				return Logical(ok && gotLiteral == literal)
+			})
+			parser, err := NewParser(WithFunctions(isExact))
+			require.NoError(t, err)
+
+			expr := "$[?is_exact(" + literal + ")]"
+			path, err := parser.Parse(expr)
+			require.NoError(t, err)
+			assert.Equal(t, expr, path.String())
+
+			input := []any{"kept"}
+			want := NodeList{"kept"}
+			assert.Equal(t, want, path.Select(input))
+			assert.Equal(t, literal, gotLiteral)
+			assert.Equal(t, []any(want), slices.Collect(path.SelectLocated(input).Values()))
+
+			roundTrip, err := parser.Parse(path.String())
+			require.NoError(t, err)
+			assert.Equal(t, want, roundTrip.Select(input))
+
+			compareExpr := "$[?@ == " + literal + "]"
+			compare, err := Parse(compareExpr)
+			require.NoError(t, err)
+			assert.Equal(t, compareExpr, compare.String())
+			values := []any{jsontext.Value(literal)}
+			assert.Equal(t, NodeList(values), compare.Select(values))
+			assert.Equal(t, values, slices.Collect(compare.SelectLocated(values).Values()))
+		})
+	}
+}
+
+func TestWithFunctions_ArgumentConversionCharacterization(t *testing.T) {
+	t.Parallel()
+
+	isExact := NewLogicalFunction("is_exact", []FuncType{FuncValue}, func(args []FunctionValue) Logical {
+		value, ok := args[0].(Value)
+		if !ok || value.IsNothing() {
+			return false
+		}
+		number, ok := value.Any().(jsontext.Value)
+		return Logical(ok && string(number) == "1e1000001")
+	})
+	hasValue := NewLogicalFunction("has_value", []FuncType{FuncValue}, func(args []FunctionValue) Logical {
+		value, ok := args[0].(Value)
+		return Logical(ok && !value.IsNothing())
+	})
+	hasNodes := NewLogicalFunction("has_nodes", []FuncType{FuncNodes}, func(args []FunctionValue) Logical {
+		nodes, ok := args[0].(Nodes)
+		return Logical(ok && len(nodes) > 0)
+	})
+	acceptLogical := NewLogicalFunction("accept_logical", []FuncType{FuncLogical}, func(args []FunctionValue) Logical {
+		logical, ok := args[0].(Logical)
+		return Logical(ok && logical.Bool())
+	})
+	identity := NewValueFunction("identity", []FuncType{FuncValue}, func(args []FunctionValue) Value {
+		return args[0].(Value)
+	})
+	parser, err := NewParser(WithFunctions(isExact, hasValue, hasNodes, acceptLogical, identity))
+	require.NoError(t, err)
+
+	input := []any{
+		map[string]any{"name": "foo", "tags": []any{"a", "b"}, "enabled": true, "ready": false},
+		map[string]any{"tags": []any{}, "enabled": false, "ready": false, "disabled": true},
+	}
+	for _, tc := range []struct {
+		name string
+		expr string
+		want NodeList
+	}{
+		{name: "exact literal value", expr: `$[?is_exact(1e1000001)]`, want: NodeList{input[0], input[1]}},
+		{name: "present singular value", expr: `$[?has_value(@.name)]`, want: NodeList{input[0]}},
+		{name: "missing singular value", expr: `$[?!has_value(@.name)]`, want: NodeList{input[1]}},
+		{name: "singular query as nodes", expr: `$[?has_nodes(@.name)]`, want: NodeList{input[0]}},
+		{name: "non singular query as nodes", expr: `$[?has_nodes(@.tags[*])]`, want: NodeList{input[0]}},
+		{
+			name: "logical grammar",
+			expr: `$[?accept_logical((@.enabled == true && !@.disabled) || @.ready == true)]`,
+			want: NodeList{input[0]},
+		},
+		{name: "nested function", expr: `$[?has_value(identity(@.name))]`, want: NodeList{input[0]}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path, err := parser.Parse(tc.expr)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, path.Select(input))
+			assert.Equal(t, []any(tc.want), slices.Collect(path.SelectLocated(input).Values()))
+
+			roundTrip, err := parser.Parse(path.String())
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, roundTrip.Select(input))
+		})
+	}
+
+	for _, expr := range []string{
+		`$[?has_nodes(true)]`,
+		`$[?has_value(@[*])]`,
+	} {
+		_, err := parser.Parse(expr)
+		require.ErrorIs(t, err, ErrPathParse)
+		require.ErrorIs(t, err, ErrFunction)
+
+		var parseErr *ParseError
+		require.ErrorAs(t, err, &parseErr)
+		assert.Equal(t, 3, parseErr.Offset)
+		assert.NotEmpty(t, parseErr.Snippet)
 	}
 }
 

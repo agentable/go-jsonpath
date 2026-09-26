@@ -332,7 +332,7 @@ func (p *Parser) parseBasicExpr() (ast.BasicExpr, error) {
 			if err != nil {
 				return nil, err
 			}
-			if fe.Func().ResultType() == ast.Value {
+			if fe.ResultType() == ast.Value {
 				return nil, p.error("value function cannot be negated")
 			}
 			return &ast.NegFuncExpr{Func: fe}, nil
@@ -363,7 +363,7 @@ func (p *Parser) parseBasicExpr() (ast.BasicExpr, error) {
 
 		if p.checkCompOp() {
 			// RFC 9535: only value function results are comparable.
-			if fe.Func().ResultType() != ast.Value {
+			if fe.ResultType() != ast.Value {
 				return nil, p.error("non-value function result cannot be compared")
 			}
 			op := p.parseCompOp()
@@ -378,7 +378,7 @@ func (p *Parser) parseBasicExpr() (ast.BasicExpr, error) {
 			}, nil
 		}
 
-		if fe.Func().ResultType() == ast.Value {
+		if fe.ResultType() == ast.Value {
 			return nil, p.errorAt(
 				p.peek().Start,
 				"value function must be used in comparison",
@@ -502,37 +502,11 @@ func (p *Parser) parseFunctionExpr() (*ast.FuncExpr, error) {
 		return nil, p.error("expected )")
 	}
 
-	if err := checkFunctionArguments(funcObj, args); err != nil {
+	function, err := ast.NewFuncExpr(funcObj, args...)
+	if err != nil {
 		return nil, p.errorAt(nameToken.Start, name+": "+err.Error(), errors.Join(ErrParsePosition, ErrFunction, err))
 	}
-
-	return ast.NewFuncExpr(funcObj, args...), nil
-}
-
-func checkFunctionArguments(fn ast.Function, args []any) error {
-	if len(args) != fn.ParameterCount() {
-		return fmt.Errorf("expected %d, got %d: %w", fn.ParameterCount(), len(args), ast.ErrArgCount)
-	}
-	for i, arg := range args {
-		target := fn.ParameterType(i)
-		if !functionArgConvertsTo(arg, target) {
-			return fmt.Errorf("argument %d cannot convert to %s: %w", i+1, target, ast.ErrArgType)
-		}
-	}
-	return nil
-}
-
-func functionArgConvertsTo(arg any, target ast.FuncType) bool {
-	switch arg := arg.(type) {
-	case *ast.PathQuery:
-		return target == ast.Nodes || (target == ast.Value && arg.IsSingular())
-	case *ast.FuncExpr:
-		return arg.ResultType() == target
-	case ast.LogicalOr, ast.LogicalAnd, ast.BasicExpr:
-		return target == ast.Logical
-	default:
-		return target == ast.Value
-	}
+	return function, nil
 }
 
 // parseFunctionArg parses a function argument using its declared parameter type.
@@ -634,7 +608,7 @@ func (p *Parser) parseCompValue() (ast.CompValue, error) {
 			return nil, err
 		}
 		// RFC 9535: only value function results are comparable.
-		if fe.Func().ResultType() != ast.Value {
+		if fe.ResultType() != ast.Value {
 			return nil, p.error("non-value function result cannot be compared")
 		}
 		return &ast.FuncValue{Func: fe}, nil
@@ -666,22 +640,9 @@ func (p *Parser) parseLiteralValue() (any, error) {
 	if p.match(lexer.String) {
 		return p.previous().Value, nil
 	}
-	if p.check(lexer.Int) {
+	if p.check(lexer.Int) || p.check(lexer.Number) {
 		tok := p.advance()
-		n, err := strconv.ParseInt(tok.Val(p.src), 10, 64)
-		if err != nil {
-			return nil, p.errorAt(tok.Start, "invalid integer", errors.Join(ErrParsePosition, err))
-		}
-		return n, nil
-	}
-	if p.check(lexer.Number) {
-		tok := p.advance()
-		s := tok.Val(p.src)
-		_, err := strconv.ParseFloat(s, 64)
-		if err != nil {
-			return nil, p.errorAt(tok.Start, "invalid number", errors.Join(ErrParsePosition, err))
-		}
-		return jsontext.Value(s), nil
+		return jsontext.Value(tok.Val(p.src)), nil
 	}
 	if p.match(lexer.True) {
 		return true, nil

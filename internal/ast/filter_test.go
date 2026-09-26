@@ -232,7 +232,7 @@ func TestNegFuncExprEval(t *testing.T) {
 	t.Run("negates_true_func", func(t *testing.T) {
 		t.Parallel()
 		fn := &logicalMockFunc{name: "test", result: true}
-		fe := NewFuncExpr(fn)
+		fe := mustFuncExpr(t, fn)
 		neg := &NegFuncExpr{Func: fe}
 		assert.False(t, neg.Eval(nil, nil))
 	})
@@ -240,7 +240,7 @@ func TestNegFuncExprEval(t *testing.T) {
 	t.Run("negates_false_func", func(t *testing.T) {
 		t.Parallel()
 		fn := &logicalMockFunc{name: "test", result: false}
-		fe := NewFuncExpr(fn)
+		fe := mustFuncExpr(t, fn)
 		neg := &NegFuncExpr{Func: fe}
 		assert.True(t, neg.Eval(nil, nil))
 	})
@@ -397,7 +397,7 @@ func TestFuncValue(t *testing.T) {
 	t.Parallel()
 
 	fn := &valueMockFunc{name: "testval", result: 99}
-	fe := NewFuncExpr(fn)
+	fe := mustFuncExpr(t, fn)
 	fv := &FuncValue{Func: fe}
 	assert.Equal(t, runtimeValueFromAny(99), fv.Value(nil, nil))
 }
@@ -591,28 +591,28 @@ func TestFuncExprEvalAsBasicExpr(t *testing.T) {
 	t.Run("logical_func_returning_true", func(t *testing.T) {
 		t.Parallel()
 		fn := &logicalMockFunc{name: "yes", result: true}
-		fe := NewFuncExpr(fn)
+		fe := mustFuncExpr(t, fn)
 		assert.True(t, fe.Eval(nil, nil))
 	})
 
 	t.Run("logical_func_returning_false", func(t *testing.T) {
 		t.Parallel()
 		fn := &logicalMockFunc{name: "no", result: false}
-		fe := NewFuncExpr(fn)
+		fe := mustFuncExpr(t, fn)
 		assert.False(t, fe.Eval(nil, nil))
 	})
 
 	t.Run("non_logical_func_returns_false", func(t *testing.T) {
 		t.Parallel()
 		fn := &valueMockFunc{name: "val", result: 42}
-		fe := NewFuncExpr(fn)
+		fe := mustFuncExpr(t, fn)
 		assert.False(t, fe.Eval(nil, nil))
 	})
 
 	t.Run("logical_func_returning_non_bool", func(t *testing.T) {
 		t.Parallel()
 		fn := &logicalMockFunc{name: "bad", result: "not a bool"}
-		fe := NewFuncExpr(fn)
+		fe := mustFuncExpr(t, fn)
 		assert.False(t, fe.Eval(nil, nil))
 	})
 }
@@ -658,7 +658,7 @@ func TestCompExprWithFuncValue(t *testing.T) {
 	t.Parallel()
 
 	fn := &valueMockFunc{name: "len", result: 5}
-	fe := NewFuncExpr(fn)
+	fe := mustFuncExpr(t, fn)
 	fv := &FuncValue{Func: fe}
 	lv := &LiteralValue{Val: 5}
 	c := &CompExpr{Left: fv, Op: Equal, Right: lv}

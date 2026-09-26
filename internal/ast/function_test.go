@@ -44,6 +44,13 @@ func (f *mockFunc) Call(args []FunctionValue) FunctionValue {
 	return f.callFn(args)
 }
 
+func mustFuncExpr(t testing.TB, fn Function, args ...any) *FuncExpr {
+	t.Helper()
+	expr, err := NewFuncExpr(fn, args...)
+	require.NoError(t, err)
+	return expr
+}
+
 func TestFuncExpr(t *testing.T) {
 	t.Parallel()
 
@@ -55,31 +62,63 @@ func TestFuncExpr(t *testing.T) {
 
 	t.Run("constructor", func(t *testing.T) {
 		t.Parallel()
-		fe := NewFuncExpr(fn, "arg1", 2)
+		withArgs := &mockFunc{
+			name:       "testfn",
+			resultType: Value,
+			params:     []FuncType{Value, Value},
+			callFn:     func(args []FunctionValue) FunctionValue { return NewValue(42) },
+		}
+		fe := mustFuncExpr(t, withArgs, "arg1", 2)
 		assert.Equal(t, "testfn", fe.Name())
-		assert.Same(t, fn, fe.Func())
-		require.Len(t, fe.Args(), 2)
-		assert.Equal(t, "arg1", fe.Args()[0])
-		assert.Equal(t, 2, fe.Args()[1])
+		assert.Equal(t, `testfn("arg1", 2)`, fe.String())
 	})
 
 	t.Run("result_type", func(t *testing.T) {
 		t.Parallel()
-		fe := NewFuncExpr(fn)
+		fe := mustFuncExpr(t, fn)
 		assert.Equal(t, Value, fe.ResultType())
 	})
 
 	t.Run("string", func(t *testing.T) {
 		t.Parallel()
-		fe := NewFuncExpr(fn, "a")
+		withArg := &mockFunc{
+			name:       "testfn",
+			resultType: Value,
+			params:     []FuncType{Value},
+			callFn:     func(args []FunctionValue) FunctionValue { return NewValue(42) },
+		}
+		fe := mustFuncExpr(t, withArg, "a")
 		assert.Equal(t, `testfn("a")`, fe.String())
 	})
 
 	t.Run("no_args", func(t *testing.T) {
 		t.Parallel()
-		fe := NewFuncExpr(fn)
-		assert.Empty(t, fe.Args())
+		fe := mustFuncExpr(t, fn)
 		assert.Equal(t, "testfn()", fe.String())
+	})
+
+	t.Run("constructor_rejects_invalid_arguments", func(t *testing.T) {
+		t.Parallel()
+
+		acceptsValue := &mockFunc{
+			name:       "accept_value",
+			resultType: Value,
+			params:     []FuncType{Value},
+			callFn:     func(args []FunctionValue) FunctionValue { return args[0] },
+		}
+		_, err := NewFuncExpr(acceptsValue)
+		require.ErrorIs(t, err, ErrArgCount)
+		_, err = NewFuncExpr(acceptsValue, NewPathQuery(false, Child(WildcardSelector())))
+		require.ErrorIs(t, err, ErrArgType)
+
+		acceptsNodes := &mockFunc{
+			name:       "accept_nodes",
+			resultType: Nodes,
+			params:     []FuncType{Nodes},
+			callFn:     func(args []FunctionValue) FunctionValue { return args[0] },
+		}
+		_, err = NewFuncExpr(acceptsNodes, true)
+		require.ErrorIs(t, err, ErrArgType)
 	})
 
 	t.Run("call_with_path_query_args", func(t *testing.T) {
@@ -91,7 +130,7 @@ func TestFuncExpr(t *testing.T) {
 		filterArg := NewPathQuery(true, Child(NameSelector("items")), Child(WildcardSelector()))
 
 		var got []FunctionValue
-		fe := NewFuncExpr(&mockFunc{
+		fe := mustFuncExpr(t, &mockFunc{
 			name:       "capture",
 			resultType: Value,
 			params:     []FuncType{Value, Nodes},
@@ -100,6 +139,7 @@ func TestFuncExpr(t *testing.T) {
 				return NoValue()
 			},
 		}, queryArg, filterArg)
+		assert.Equal(t, `capture(@["name"], $["items"][*])`, fe.String())
 
 		fe.Call(current, root)
 		require.Len(t, got, 2)
@@ -121,7 +161,7 @@ func TestFuncExpr(t *testing.T) {
 		queryArg := NewPathQuery(false, Child(NameSelector("missing")))
 
 		var got []FunctionValue
-		fe := NewFuncExpr(&mockFunc{
+		fe := mustFuncExpr(t, &mockFunc{
 			name:       "capture",
 			resultType: Value,
 			params:     []FuncType{Value},
@@ -145,7 +185,7 @@ func TestFuncExpr(t *testing.T) {
 		queryArg := NewPathQuery(false, Child(WildcardSelector()))
 
 		var got []FunctionValue
-		fe := NewFuncExpr(&mockFunc{
+		fe := mustFuncExpr(t, &mockFunc{
 			name:       "capture",
 			resultType: Value,
 			params:     []FuncType{Nodes},
@@ -164,10 +204,10 @@ func TestFuncExpr(t *testing.T) {
 		}
 	})
 
-	t.Run("call_evaluates_nested_function_compvalue_and_literal_args", func(t *testing.T) {
+	t.Run("call_evaluates_nested_function_and_literal_args", func(t *testing.T) {
 		t.Parallel()
 
-		child := NewFuncExpr(&mockFunc{
+		child := mustFuncExpr(t, &mockFunc{
 			name:       "child",
 			resultType: Value,
 			callFn: func(args []FunctionValue) FunctionValue {
@@ -176,7 +216,7 @@ func TestFuncExpr(t *testing.T) {
 		})
 
 		var got []FunctionValue
-		fe := NewFuncExpr(&mockFunc{
+		fe := mustFuncExpr(t, &mockFunc{
 			name:       "capture",
 			resultType: Value,
 			params:     []FuncType{Value, Value, Value},
@@ -184,7 +224,8 @@ func TestFuncExpr(t *testing.T) {
 				got = append([]FunctionValue(nil), args...)
 				return NoValue()
 			},
-		}, child, &LiteralValue{Val: 99}, "plain")
+		}, child, 99, "plain")
+		assert.Equal(t, `capture(child(), 99, "plain")`, fe.String())
 
 		fe.Call(nil, nil)
 		require.Len(t, got, 3)
@@ -197,5 +238,32 @@ func TestFuncExpr(t *testing.T) {
 		third, ok := got[2].(TypedValue)
 		require.True(t, ok)
 		assert.Equal(t, "plain", third.Any())
+	})
+
+	t.Run("call_with_logical_argument", func(t *testing.T) {
+		t.Parallel()
+
+		logical := LogicalOr{LogicalAnd{&CompExpr{
+			Left:  &LiteralValue{Val: true},
+			Op:    Equal,
+			Right: &LiteralValue{Val: true},
+		}}}
+		var got []FunctionValue
+		fe := mustFuncExpr(t, &mockFunc{
+			name:       "capture",
+			resultType: Value,
+			params:     []FuncType{Logical},
+			callFn: func(args []FunctionValue) FunctionValue {
+				got = append([]FunctionValue(nil), args...)
+				return NoValue()
+			},
+		}, logical)
+		assert.Equal(t, "capture(true == true)", fe.String())
+
+		fe.Call(nil, nil)
+		require.Len(t, got, 1)
+		value, ok := got[0].(TypedLogical)
+		require.True(t, ok)
+		assert.True(t, value.Bool())
 	})
 }

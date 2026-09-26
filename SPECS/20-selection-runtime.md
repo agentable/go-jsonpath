@@ -112,6 +112,10 @@ execution, and measured performance.
   integers preserve magnitude, `jsontext.Value` preserves its decimal lexeme,
   and finite floats preserve their binary value. Invalid number text, NaN, and
   infinities are not comparable JSON numbers.
+- Numeric filter literals are compiled from lexer-validated source directly to
+  `jsontext.Value`, including integer forms and `-0`. Their syntax and range do
+  not depend on `strconv`; index and slice safe-integer validation remains a
+  separate parser boundary.
 - `QueryJSON*` decodes JSON text numbers as `jsontext.Value`; caller-decoded
   input passed to `Select` or `SelectLocated` retains its supplied Go numeric
   representation.
@@ -137,7 +141,9 @@ execution, and measured performance.
 
 ### Function Argument Conversion
 
-- Literal arguments convert to JSON `Value`.
+- Literal arguments convert to JSON `Value`. Numeric literals carry their
+  original lexeme as `jsontext.Value`; strings, booleans, and null retain their
+  existing representations.
 - Singular query arguments convert to `Value` when exactly one node is selected,
   otherwise `NoValue`.
 - Filter query and non-singular query arguments convert to `Nodes`.
@@ -149,6 +155,14 @@ execution, and measured performance.
   destination parameter.
 - Value functions used as comparison operands convert through the private
   runtime boundary before comparison.
+- The parser uses the destination parameter only to disambiguate query,
+  logical-expression, and nested-function grammar. `internal/ast` then validates
+  and binds a private tagged argument with its `Value`, `Nodes`, or `Logical`
+  evaluation strategy.
+- A valid `FuncExpr` stores compiled arguments rather than raw `any`
+  expressions. `FuncExpr.Call` evaluates those strategies directly; it does not
+  call `ParameterCount` or `ParameterType`, infer non-singular query recovery,
+  or keep an unknown-expression fallback.
 
 ### Total Function Execution
 
@@ -161,8 +175,9 @@ execution, and measured performance.
   make invalid result categories unrepresentable. Function error semantics must
   wrap `ErrFunction`.
 - Function argument validation is a deterministic comparison against the fixed
-  signature. Singular-query conversion is selected from the destination
-  parameter without invoking extension code.
+  signature at AST construction. Singular-query conversion is selected from
+  the destination parameter without invoking extension code and remains fixed
+  for every later call.
 - Function runtime code must not use panic as a control path.
 
 ### I-Regexp Acceptance And Mapping

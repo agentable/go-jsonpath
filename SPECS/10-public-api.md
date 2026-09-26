@@ -58,7 +58,9 @@ and path step representation are owned by implementation packages and by
 - **Lifecycle**: Produced by parser/runtime argument conversion or by callbacks
   created with `NewValueFunction`, `NewLogicalFunction`, or `NewNodesFunction`.
 - **Invariants**: `NoValue` means absence, not JSON null. JSON null is
-  represented as a present `Value` whose `Any()` is nil.
+  represented as a present `Value` whose `Any()` is nil. Every numeric query
+  literal reaches a `FuncValue` parameter as a `jsontext.Value` containing the
+  original lexeme; small integers are not a separate callback type.
 - **Owner**: `options.go` and `internal/ast/function.go`.
 
 ## Contracts
@@ -87,6 +89,11 @@ and path step representation are owned by implementation packages and by
   `jsontext.Value` lexemes. Callers needing another number representation,
   custom decoder policy, or streaming behavior decode outside this package and
   pass the decoded value to `Path` methods.
+- Numeric literals written in a filter query are compiled independently of the
+  input document. All valid integer, fraction, and exponent forms use
+  `jsontext.Value`, preserve their source lexeme through `Path.String`, and do
+  not inherit `int64` or binary floating-point range limits. Index and slice
+  integers retain their RFC 9535 safe-integer boundary and reject `-0`.
 
 **Decision**
 
@@ -163,6 +170,10 @@ and path step representation are owned by implementation packages and by
   arguments with `ErrFunction`.
 - Extension callbacks are total: runtime absence is expressed as `NoValue`,
   `Logical(false)`, or an empty `Nodes` value, not as a runtime error channel.
+- A numeric query literal passed to a `FuncValue` parameter is always a
+  `jsontext.Value` with its original lexeme. JSON document numbers decoded by
+  `QueryJSON*` also use `jsontext.Value`; caller-decoded values passed directly
+  to selection retain the caller's Go numeric type.
 
 **Decision**
 
