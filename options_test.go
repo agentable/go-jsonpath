@@ -687,24 +687,12 @@ func TestParserMustParse_PanicsWithErrPathParse(t *testing.T) {
 	p.MustParse("invalid")
 }
 
-func TestMapFuncType(t *testing.T) {
+func TestValidFuncType(t *testing.T) {
 	t.Parallel()
-
-	for _, tc := range []struct {
-		in   FuncType
-		want ast.FuncType
-	}{
-		{in: FuncLogical, want: ast.Logical},
-		{in: FuncValue, want: ast.Value},
-		{in: FuncNodes, want: ast.Nodes},
-	} {
-		got, ok := mapFuncType(tc.in)
-		require.True(t, ok)
-		assert.Equal(t, tc.want, got)
+	for _, kind := range []FuncType{FuncLogical, FuncValue, FuncNodes} {
+		assert.True(t, validFuncType(kind))
 	}
-
-	_, ok := mapFuncType(FuncType(99))
-	assert.False(t, ok)
+	assert.False(t, validFuncType(FuncType(99)))
 }
 
 func BenchmarkParserParse(b *testing.B) {

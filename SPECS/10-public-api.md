@@ -158,6 +158,9 @@ and path step representation are owned by implementation packages and by
 ### Extension Functions
 
 - `WithFunctions` registers non-built-in functions.
+- `FunctionValue.ResultType()` returns the same `FuncType` used for extension
+  parameters. The categories format as `Logical`, `Value`, and `Nodes`; an
+  unknown category formats as `FuncType(n)` and is rejected at registration.
 - Invalid parser options fail at `NewParser` construction time and satisfy
   `ErrFunction`; this includes a nil `Option`, which returns a nil parser rather
   than panicking. Expression parse failures remain `ErrPathParse`.
@@ -184,6 +187,14 @@ and path step representation are owned by implementation packages and by
   absence with configuration or validation failure.
 - **Basis**: RFC 9535 function types, existing parser validation, README
   extension examples, and tests around `ErrFunction` and `NoValue`.
+
+**Category identity**: Public `FuncType` aliases the existing runtime category
+type so `FunctionValue.ResultType()` can be assigned and compared directly.
+Keep one category authority instead of a second enum and conversion table.
+The shared identity does not make every integer a valid category: registration
+still checks signature categories, and expression parsing still checks argument
+conversions. Preserve the distinction between a present null `Value` and
+`NoValue`; both have category `FuncValue`.
 
 ## Hidden Complexity Boundary
 

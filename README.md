@@ -145,8 +145,8 @@ for node := range located.All() {
 elements, negative indexes, and name elements that are not valid UTF-8 with
 `ErrInvalidPath`. Normalized names belong to the JSON string domain. Read
 runtime indexes through `ElementChecked`, which returns `ErrIndexOutOfBounds`,
-or copy all elements with `Elements`. `Element` is the compatibility wrapper
-for statically known indexes and panics on an out-of-bounds index.
+or copy all elements with `Elements`. `Element` provides direct indexed access
+and panics on an out-of-bounds index.
 `LocatedNodeList` is a nodelist in query order, not a set. Use `Values` and `Paths` to iterate just values or paths. `Sort` and `Deduplicate` are caller opt-in operations; `Deduplicate` is path-based, keeps the first node for each path, and ignores value equality.
 
 ```go
@@ -185,6 +185,8 @@ Register custom filter functions with `NewParser(jsonpath.WithFunctions(...))`. 
 - `jsonpath.Value`: one JSON value or `NoValue`
 - `jsonpath.Logical`: boolean test result
 - `jsonpath.Nodes`: node list result
+
+`FunctionValue.ResultType()` returns `FuncType`, so it can be assigned or compared directly with `FuncLogical`, `FuncValue`, and `FuncNodes`. Their string forms are `Logical`, `Value`, and `Nodes`; an unknown category formats as `FuncType(n)`. `NewParser` rejects unknown signature categories with `ErrFunction`; `Parser.Parse` rejects incompatible argument categories before execution.
 
 Functions have one immutable name, fixed parameter list, result category, and
 callback. The parser validates argument conversions from that signature;

@@ -142,6 +142,7 @@ For parser, selector, located-result, normalized-path, or built-in-function perf
 - Keep `PathQuery` as the only query representation; use `IsSingular` instead of adding a singular-query mirror.
 - Preserve JSON number lexemes in `QueryJSON*` and exact numeric comparison across integer, `jsontext.Value`, and finite float inputs; never normalize the numeric domain through `float64`.
 - Keep function extension runtime values typed: `Value`, `Logical`, `Nodes`; use `NoValue` for absence, not JSON null.
+- Keep `FuncType` identical to the category returned by `FunctionValue.ResultType`; public assignment and comparison require no conversion. Validate signature categories at `NewParser` and argument compatibility at expression parsing; sharing the type must not bypass either check.
 - Keep the non-nil zero `Parser` equivalent to a no-option `NewParser`; both use the same immutable built-in registry and support concurrent reuse.
 - Validate raw I-Regexp syntax before RE2 mapping and cache insertion; include match/search mode in cache identity, and preserve CTS anchor semantics for unescaped `^`/`$`.
 - Regenerate `default.pgo` only when representative query hot paths materially change.

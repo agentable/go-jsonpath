@@ -22,16 +22,17 @@ var builtinRegistry = sync.OnceValue(func() map[string]ast.Function {
 })
 
 // FuncType describes a function extension's parameter or result type as defined
-// by RFC 9535 §2.4.1.
-type FuncType uint8
+// by RFC 9535 §2.4.1. Its String method returns Logical, Value, or Nodes
+// for the corresponding category and FuncType(n) for an unknown value.
+type FuncType = ast.FuncType
 
 const (
 	// FuncLogical indicates a logical (bool) parameter or result.
-	FuncLogical FuncType = iota
+	FuncLogical = ast.Logical
 	// FuncValue indicates a single-JSON-value parameter or result.
-	FuncValue
+	FuncValue = ast.Value
 	// FuncNodes indicates a node-list parameter or result.
-	FuncNodes
+	FuncNodes = ast.Nodes
 )
 
 // FunctionValue is one of the RFC 9535 function runtime value types.
@@ -142,16 +143,12 @@ func (a functionAdapter) ResultType() ast.FuncType {
 	return a.resultType
 }
 
-func mapFuncType(ft FuncType) (ast.FuncType, bool) {
+func validFuncType(ft FuncType) bool {
 	switch ft {
-	case FuncLogical:
-		return ast.Logical, true
-	case FuncValue:
-		return ast.Value, true
-	case FuncNodes:
-		return ast.Nodes, true
+	case FuncLogical, FuncValue, FuncNodes:
+		return true
 	default:
-		return ast.Value, false
+		return false
 	}
 }
 
@@ -181,8 +178,7 @@ func (o *parserOptions) registerFunctions(fns ...Function) {
 			continue
 		}
 
-		resultType, ok := mapFuncType(fn.resultType)
-		if !ok {
+		if !validFuncType(fn.resultType) {
 			o.addFunctionError("function %q has invalid result type %d", name, fn.resultType)
 			continue
 		}
@@ -191,11 +187,9 @@ func (o *parserOptions) registerFunctions(fns ...Function) {
 			continue
 		}
 
-		params := make([]ast.FuncType, len(fn.params))
 		valid := true
 		for i, param := range fn.params {
-			params[i], ok = mapFuncType(param)
-			if !ok {
+			if !validFuncType(param) {
 				o.addFunctionError("function %q has invalid parameter type %d at index %d", name, param, i)
 				valid = false
 				break
@@ -207,8 +201,8 @@ func (o *parserOptions) registerFunctions(fns ...Function) {
 
 		o.functions[name] = functionAdapter{
 			name:       name,
-			params:     params,
-			resultType: resultType,
+			params:     fn.params,
+			resultType: fn.resultType,
 			call:       fn.call,
 		}
 	}
