@@ -69,8 +69,8 @@ tasks:
     desc: Download Go module dependencies
     cmds:
       - echo "Downloading dependencies..."
-      - GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org go mod download
-      - GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org go list -deps -test ./... >/dev/null
+      - go mod download
+      - go list -deps -test ./... >/dev/null
 
   deps:update:
     desc: Update dependencies for the root module and any nested modules
