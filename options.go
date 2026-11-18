@@ -294,8 +294,7 @@ func wrapPathParseError(err error) error {
 }
 
 func newParseError(err error) *ParseError {
-	var parserErr *parser.Error
-	if errors.As(err, &parserErr) {
+	if parserErr, ok := errors.AsType[*parser.Error](err); ok {
 		return &ParseError{
 			Offset:  parserErr.Offset,
 			Reason:  parserErr.Reason,

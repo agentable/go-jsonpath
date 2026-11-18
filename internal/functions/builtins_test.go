@@ -244,9 +244,7 @@ func TestValueFunc(t *testing.T) {
 }
 
 func TestCompileIRegexpCache(t *testing.T) {
-	t.Parallel()
-
-	// Clear cache for this test.
+	// Mutates the package-level regexp cache.
 	clearRegexCache()
 
 	re1 := compileIRegexp("abc")
@@ -276,8 +274,7 @@ func TestReplaceDotIRegexp(t *testing.T) {
 }
 
 func TestCompileIRegexpConcurrent(t *testing.T) {
-	t.Parallel()
-
+	// Mutates the package-level regexp cache.
 	clearRegexCache()
 
 	var wg sync.WaitGroup
@@ -295,8 +292,7 @@ func TestCompileIRegexpConcurrent(t *testing.T) {
 }
 
 func TestRegexCacheBehavior(t *testing.T) {
-	t.Parallel()
-
+	// Subtests clear the shared regexp cache and must not overlap other tests.
 	t.Run("cache_stores_compiled_regex", func(t *testing.T) {
 		clearRegexCache()
 		pattern := "test.*pattern"

@@ -170,8 +170,7 @@ Parse failures satisfy `ErrPathParse`. Function lookup, validation, and registra
 ```go
 _, err := jsonpath.Parse(" $.store")
 
-var parseErr *jsonpath.ParseError
-if errors.As(err, &parseErr) {
+if parseErr, ok := errors.AsType[*jsonpath.ParseError](err); ok {
 	fmt.Println(errors.Is(err, jsonpath.ErrPathParse))
 	fmt.Println(parseErr.Offset)
 	fmt.Println(parseErr.Reason)
