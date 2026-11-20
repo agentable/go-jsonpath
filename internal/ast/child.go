@@ -48,15 +48,14 @@ func ForEachChildReverse(node any, yield func(ChildNode) bool) {
 	switch v := node.(type) {
 	case map[string]any:
 		names := sortedChildNames(v)
-		for i := len(names) - 1; i >= 0; i-- {
-			name := names[i]
+		for _, name := range slices.Backward(names) {
 			if !yield(ChildNode{Value: v[name], Name: name}) {
 				return
 			}
 		}
 	case []any:
-		for index := len(v) - 1; index >= 0; index-- {
-			if !yield(ChildNode{Value: v[index], Index: index, Array: true}) {
+		for index, v0 := range slices.Backward(v) {
+			if !yield(ChildNode{Value: v0, Index: index, Array: true}) {
 				return
 			}
 		}
